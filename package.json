@@ -1,0 +1,21 @@
+{
+  "name": "nk-bil-dack",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Konceptdemo: webbplats, bokning, webshop och verkstadsvy för NK Bil & Däck i Gävle",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/dev.mjs",
+    "test": "python3 tests/smoke.py"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@fontsource-variable/archivo": "5.3.0",
+    "@fontsource/yellowtail": "5.3.0",
+    "three": "0.187.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}
