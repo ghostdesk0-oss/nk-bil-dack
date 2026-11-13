@@ -4,6 +4,13 @@ What changed, in words Nicklas would understand where it is visible to him.
 Newest first. Add to Unreleased as you go; cut a version when the demo link is republished.
 
 ## Unreleased
+- Sidewall text (incl. your own) reads left-to-right again; the arc drawing mirrored each letter.
+- Shop clock and open/closed status always follow Swedish time, whatever the visitor's device timezone.
+- Story drag layer no longer swallows taps on rim colours and the tyre-text input.
+- Hero: trust pill (Brynäsgatan 67, Gävle • Sedan 1993 • 4,6 ★ på Google), "Punktering? Kom direkt" quick link, scroll hint; the wheel is centred and capped on narrow phones.
+- Configurator: whole car fits at 390 px, dock can no longer overflow, vertical swipes scroll instead of orbiting, phone-call FAB stays reachable, mirrored car clone removed (~50% fewer triangles), shaders pre-warm on idle, both scenes skip rendering when settled and recover after GPU context loss.
+- Burnout: hold survives thumb drift, phone vibrates on ignition, smoke uses a pre-rendered sprite at device pixel ratio with a denser plume.
+- Booking drawer has an optional email field; quick-quote plate follows the hero input; configurator bookings note the paint; open tabs stay in sync via storage events; inline SVG favicon; a11y: tablist roles, hidden callout card, labelled stars, cart count in the aria-label, inert hotspots.
 - Verkstaden stays reachable after the demo strip is dismissed: Shift+V on desktop, the footer wordmark (or the NK plate in Verkstaden) on touch.
 - Verkstaden owner pitch: KPI strip (dagens bokningar, lediga tider, däckhotell-beläggning, akuta drop-in), booking rows with Swedish reg-plate badge, lift and hotel-shelf assignment, "Markera klar & skicka SMS" with toast confirmation, and a NY BOKNING pill on fresh web bookings.
 - Optional sound (off until toggled in the header): synthesized wheel-gun burst on rim swaps and an rpm-following hum while the burnout is held.

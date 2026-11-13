@@ -123,6 +123,9 @@ async def main():
         overlap = await js("""(function(){var h=document.getElementById('hwy').getBoundingClientRect(),c=document.querySelector('.ccam').getBoundingClientRect();
           return c.top < h.bottom - 2 && c.bottom > h.top + 2 && c.left < h.right - 2 && c.right > h.left + 2})()""")
         assert not overlap, "camera presets overlap the highway button"
+        # the configurator bar must never overflow the 390 px viewport
+        over = await js("[...document.querySelectorAll('.cbar,.ccats,.copts')].map(e=>e.getBoundingClientRect().right <= innerWidth + 1)")
+        assert all(over), "configurator dock overflows the viewport"
         await js("document.querySelector('[data-act=ccat][data-v=falg]').click()")
         await js("document.querySelector('[data-act=copt][data-v=black]').click()")
         assert "Black Edition" in await js("document.getElementById('csel').textContent")

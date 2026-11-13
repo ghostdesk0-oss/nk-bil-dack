@@ -203,11 +203,11 @@ export function mount(canvas, opts = {}) {
     return { car, body, wheels };
   }
 
-  const real = makeCar(), mirror = makeCar();
+  const real = makeCar();
   const stage = new Group(); scene.add(stage);
   stage.add(real.car);
-  mirror.car.scale.y = -1; stage.add(mirror.car);
-  const both = [real, mirror], allWheels = real.wheels.concat(mirror.wheels);
+  // no mirrored clone: the soft floor and per-tyre contact shadows ground the car at half the triangle cost
+  const both = [real], allWheels = real.wheels;
 
   /* ---------- studio: floor, shadow, glow, tunnel, streaks, snow ---------- */
   const rough = concrete(); rough.repeat.set(7, 7);
@@ -258,7 +258,7 @@ export function mount(canvas, opts = {}) {
   const O = { az: 0.62, el: 0.16, dist: 9, tx: 0.1, ty: 0.6, tz: 0, // current
     T: { az: 0.62, el: 0.16, dist: 9, tx: 0.1, ty: 0.6, tz: 0, fit: true }, user: 0, scrollAz: 0, zoom: 1 };
   const PRESETS = {
-    front: { az: 0.62, el: 0.15, dist: 9.4, tx: 0.15, ty: 0.62, tz: 0, fit: true },
+    front: { az: 0.62, el: 0.15, dist: 9.4, tx: 0.02, ty: 0.62, tz: 0, fit: true },
     side: { az: 0.0, el: 0.05, dist: 9.2, tx: 0, ty: 0.62, tz: 0, fit: true },
     close: { az: 0.42, el: 0.09, dist: 2.25, tx: 1.42, ty: 0.36, tz: 0.86, fit: false }
   };
@@ -290,7 +290,8 @@ export function mount(canvas, opts = {}) {
     const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
     if (ptrs.size === 2) { const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0) O.zoom = Math.max(0.45, Math.min(1.6, zoom0 * pinch0 / d)); return; }
     if (Math.abs(dx) > 1) dragged = true;
-    O.T.az -= dx * 0.0085; O.user = 1;
+    // vertical swipes scroll the page; only orbit once the gesture is clearly horizontal
+    if (Math.abs(dx) > Math.abs(dy)) { O.T.az -= dx * 0.0085; O.user = 1; }
     if (e.pointerType === 'mouse') O.T.el = Math.max(-0.02, Math.min(0.7, O.T.el + dy * 0.005));
   });
   const end = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = 0; if (!ptrs.size) canvas.classList.remove('grabbing'); };
@@ -314,7 +315,7 @@ export function mount(canvas, opts = {}) {
   }
   const kickBounce = (v) => { if (!reduce) S.bv -= v; };
 
-  let prev = performance.now(), clock = 0, slow = 0, count = 0, pending = null;
+  let prev = performance.now(), clock = 0, slow = 0, count = 0, pending = null, lastSkip = 0, stillFor = 0;
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
@@ -375,7 +376,7 @@ export function mount(canvas, opts = {}) {
 
     // camera: preset target, user orbit, scroll parallax
     if (O.T.fit) { // keep the whole car in frame on narrow screens
-      const free = Math.max(120, vh - padT - padB), hf = Math.atan(Math.tan(15 * Math.PI / 180) * vw / free); O.T.distFit = Math.max(O.T.dist, 3.35 / Math.tan(hf));
+      const free = Math.max(120, vh - padT - padB), hf = Math.atan(Math.tan(15 * Math.PI / 180) * vw / free); O.T.distFit = Math.max(O.T.dist, 4.7 / Math.tan(hf)); // margin keeps the whole car in frame at 390 px
     } else O.T.distFit = O.T.dist;
     const k = Math.min(1, dt * 4.2);
     const az = O.T.az + ext.az * (1 - O.user);
@@ -386,11 +387,24 @@ export function mount(canvas, opts = {}) {
     cam.lookAt(O.tx, O.ty, O.tz);
     renderer.toneMappingExposure = 1.02 * (1 - 0.45 * ext.dim);
 
-    renderer.render(scene, cam);
+    // render-on-demand: skip drawing once the scene has fully settled
+    const still = S.kmh < 0.2 && !st.highway && !S.swap && !S.studDirty && S.paintMix >= 1 &&
+      Math.abs(S.bv) < 0.001 && Math.abs(S.bounce) < 0.001 && Math.abs(S.vel) < 0.01 &&
+      Math.abs(S.glowT - S.glowV) < 0.001 && Math.abs(S.ledT - S.led) < 0.001 && st.season === 'sommar';
+    const settled = still && stillFor > 45;
+    stillFor = still ? stillFor + 1 : 0;
+    if (!settled || lastSkip > 30 || reduce) { renderer.render(scene, cam); lastSkip = 0; } else lastSkip++;
     if (opts.onFrame) opts.onFrame();
     if (dpr > 1) { count++; if (dt > 0.024) slow++; if (count >= 90) { if (slow > 40) { dpr = Math.max(1, dpr - 0.35); renderer.setPixelRatio(dpr); resize(true); } count = 0; slow = 0; } }
   }
   requestAnimationFrame(frame);
+
+  // pre-warm shader compilation while the browser is idle, so scrolling into view is hitch-free
+  if (renderer.compileAsync) renderer.compileAsync(scene, cam).catch(() => {});
+  else if ('requestIdleCallback' in window) requestIdleCallback(() => renderer.compile(scene, cam));
+
+  // regenerate the environment and tyre textures if the GPU context is lost and restored
+  canvas.addEventListener('webglcontextrestored', () => { scene.environment = studioEnv(renderer); retexTyre(); resize(true); });
 
   const PINS = { wheel: new Vector3(1.42 + 0.1, HUB_Y + 0.12, 0.97), brake: new Vector3(1.42 - 0.13, HUB_Y + 0.19, 0.86) };
   return {

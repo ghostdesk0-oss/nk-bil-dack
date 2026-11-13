@@ -5,6 +5,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NK Bil & Däck – demo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230A0607'/%3E%3Ctext x='16' y='22' font-family='Arial Black,Arial' font-size='14' font-style='italic' font-weight='900' fill='%23E4102A' text-anchor='middle'%3ENK%3C/text%3E%3C/svg%3E">
 <style>
 /*FONTS*/
 /*STYLES*/
@@ -48,7 +49,7 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
     <button class="hs" data-act="hot" data-v="rim" aria-label="Visa däckhotell"></button>
     <div class="badge" data-a="tread"><span></span></div><div class="badge" data-a="sidewall"><span></span></div><div class="badge" data-a="rim"><span></span></div>
   </div>
-  <div class="gcard" id="gcard" role="dialog" aria-live="polite"></div>
+  <div class="gcard" id="gcard" role="dialog" aria-live="polite" aria-labelledby="gcardTitle" hidden></div>
   <header class="top"><div class="wrap">
     <a class="plate" href="#">NK Bil & Däck</a>
     <nav class="nav" aria-label="Huvudmeny"><a href="#tjanster">Tjänster</a><a href="#dack">Köp däck</a><a href="#hotell">Däckhotell</a><a href="#hitta">Hitta hit</a></nav>
@@ -58,7 +59,11 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
 
   <section class="hero"><div class="wrap">
     <h1 class="d"><span><i>Däck.</i></span><span><i>Fälgar.</i></span><span><i>Verkstad.</i></span></h1>
-    <p class="hero-sub">Skriv ditt regnummer så visar vi rätt däck och närmaste lediga tid.</p>
+    <div class="hero-meta">
+      <p class="hero-sub">Skriv ditt regnummer så visar vi rätt däck och närmaste lediga tid.</p>
+      <p class="trustpill">Brynäsgatan 67, Gävle <i>•</i> Sedan 1993 <i>•</i> 4,6 ★ på Google</p>
+      <a class="hq-link" href="#kontakt">Punktering? Kom direkt →</a>
+    </div>
     <form class="plateform" id="plateform" novalidate>
       <label class="regplate" id="regPlate"><span>S</span><input id="heroReg" maxlength="7" placeholder="ABC 123" aria-label="Regnummer" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
       <button class="btn" type="submit"><span>Skanna</span></button>
@@ -66,6 +71,7 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
     <div class="stage">
       <div class="dragzone" id="dragHero"></div>
       <div class="hint" id="hint"><svg viewBox="0 0 26 14" aria-hidden="true"><path d="M5 3L1 7l4 4M21 3l4 4-4 4M1 7h24"/></svg>Håll in för burnout</div>
+      <div class="scrollhint" aria-hidden="true">Scrolla för att se hjulet plockas isär<svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
     </div>
   </div></section>
 
@@ -116,7 +122,7 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
         <button data-act="copt" data-k="view" data-v="close" aria-pressed="false">Närbild Hjul</button>
       </div>
       <div class="cdock">
-        <div class="ccats" id="ccats"></div>
+        <div class="ccats" id="ccats" role="tablist" aria-label="Konfiguratorns val"></div>
         <div class="copts" id="copts"></div>
         <div class="cbar"><p class="csel" id="csel"></p><button class="btn" data-act="cfgbook"><span>Boka tid med detta val</span></button></div>
       </div>
@@ -125,7 +131,7 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
 
   <section class="sec light sheetlike" id="kontakt"><div class="wrap">
     <div class="proof">
-      <span class="stars" aria-label="4,6 av 5"><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><i style="width:92%"><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg></i></span>
+      <span class="stars" role="img" aria-label="4,6 av 5"><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><i style="width:92%"><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg></i></span>
       <span><b>4,6</b> på Google, 155 omdömen</span>
       <span>Sedan 1993 på Brynäs</span>
       <span>Drop-in vid punktering</span>
@@ -213,6 +219,7 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
 
   <footer class="foot"><div class="wrap">Konceptdemo för NK Bil & Däck AB. Kunder, bokningar, lager och de flesta priser är påhittade exempel.</div><button class="mega d" data-act="vadm" aria-label="Växla mellan kundsidan och Verkstaden">NK Bil & Däck</button></footer>
 
+  <a class="cfgcall" href="tel:+4626180501" aria-label="Ring 026-18 05 01"><svg class="i"><use href="#i-tel"/></svg></a>
   <div class="bar">
     <a class="btn line" href="tel:+4626180501" aria-label="Ring 026-18 05 01"><span><svg class="i"><use href="#i-tel"/></svg>026-18 05 01</span></a>
     <button class="btn" data-act="book" id="barMain"><span>Boka tid</span></button>

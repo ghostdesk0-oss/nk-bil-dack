@@ -79,7 +79,8 @@ export function tyreTextures(size, text, season, K) {
     const cx = u * W, cy = t0 * 0.5;
     chars.forEach((ch, i) => {
       const mid = ang + ws[i] / R / 2; ang += ws[i] / R;
-      const px = cx + Math.sin(mid) * R, py = cy - R * (1 - Math.cos(mid));
+      // mirrored around the arc center so the text reads left-to-right on the upper sidewall
+      const px = cx - Math.sin(mid) * R, py = cy - R * (1 - Math.cos(mid));
       for (const [ctx, col] of [[a, hCol], [b, cCol], [rc, '#c9c9c9']]) {
         ctx.save(); ctx.translate(px, py); ctx.rotate(Math.PI + mid); ctx.scale(0.8 * K * fit, 1.05 * K * fit);
         ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = col; ctx.fillText(ch, 0, 0); ctx.restore();
@@ -265,7 +266,7 @@ export function mount(canvas, opts = {}) {
   }
   writeStuds();
 
-  let prev = performance.now(), started = false, wasActive = true, slow = 0, count = 0, clock = 0, extVis = true;
+  let prev = performance.now(), started = false, wasActive = true, slow = 0, count = 0, clock = 0, extVis = true, lastSkip = 0;
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - prev) / 1000); prev = now; clock += dt;
@@ -278,7 +279,7 @@ export function mount(canvas, opts = {}) {
     const wpp = 2 * DIST * Math.tan(FOV * Math.PI / 360) / vh;
     let ex = 0;
     if (S.entry > 0) { const p = Math.min(1, (now - S.t0) / 1700), ease = 1 - Math.pow(2, -9 * p), n = p < 1 ? 1 - ease : 0; S.ang += (S.entry - n) * 4.2; S.entry = n; ex = n * 4.2; }
-    const scanning = S.scan && clock - S.scan.t < 1.9;
+    const scanning = S.scan && now - S.scan.t < 1900; // wall-clock: slow frames must not stretch the scan
     if ((S.rev || scanning) && !reduce) S.vel += ((scanning ? 26 : 48) - S.vel) * Math.min(1, dt * (scanning ? 4 : 1.1));
     else {
       const tgt = reduce ? 0 : T.spin || 0;
@@ -332,14 +333,24 @@ export function mount(canvas, opts = {}) {
 
     // laser sweep
     if (S.scan) {
-      const p = (clock - S.scan.t) / 1.9;
+      const p = (now - S.scan.t) / 1900;
       if (p >= 1) { laserG.visible = false; const cb = S.scan.cb; S.scan = null; if (cb) cb(); }
       else { laserG.visible = true; laserG.position.z = Math.cos(p * Math.PI * 3) * 0.4; const fade = Math.sin(Math.min(1, p * 6) * Math.PI / 2) * (p > 0.85 ? (1 - p) / 0.15 : 1); laserMat.opacity = fade; bandMat.opacity = 0.22 * fade; }
     }
-    renderer.render(scene, cam);
+    // render-on-demand: skip drawing once pose, spin, springs and particles have settled
+    let settled = Math.abs(S.vel) < 0.005 && S.entry === 0 && !S.drag && !S.scan && S.mix >= 1 && C.snow < 0.02 &&
+      Math.abs(S.vx) < 0.001 && Math.abs(S.vy) < 0.001;
+    if (settled) {
+      const T2 = pose();
+      for (const key of ['x', 'y', 'd', 'yaw', 'pitch', 'e', 'f', 'temp', 'snow', 'floor', 'cam']) { const tv = T2[key] == null ? 0 : T2[key]; if (Math.abs(tv - C[key]) > 0.0005) settled = false; }
+    }
+    if (!settled || lastSkip > 30 || reduce) { renderer.render(scene, cam); lastSkip = 0; } else lastSkip++;
     if (dpr > 1.25) { count++; if (dt > 0.03) slow++; if (count >= 90) { if (slow > 45) { dpr = Math.max(1.25, dpr - 0.5); renderer.setPixelRatio(dpr); resize(true); } count = 0; slow = 0; } }
   }
   requestAnimationFrame(frame);
+
+  // regenerate the environment and canvas textures if the GPU context is lost and restored
+  canvas.addEventListener('webglcontextrestored', () => { scene.environment = studioEnv(renderer); retex(); renderer.setSize(vw, vh, false); });
 
   const ANCH = { tread: new Vector3(-0.96, 0.28, 0.02), sidewall: new Vector3(0.05, 0.84, 0.34), rim: new Vector3(0.3, -0.3, 0.3) };
   function retex() { const t = tyreTextures(size, text, season, K); for (const k of ['map', 'bumpMap', 'roughnessMap']) { if (w.tyreMat[k]) w.tyreMat[k].dispose(); } w.tyreMat.map = t.map; w.tyreMat.bumpMap = t.bump; w.tyreMat.roughnessMap = t.rough; w.tyreMat.needsUpdate = true; }
@@ -347,7 +358,7 @@ export function mount(canvas, opts = {}) {
     setFinish(name) { const f = FINISH[name]; if (!f) return; S.from.copy(w.rimMat.color); S.to.set(f.color); S.fFrom = { metalness: w.rimMat.metalness, roughness: w.rimMat.roughness, clearcoat: w.rimMat.clearcoat }; S.fTo = f; S.mix = 0; if (!reduce) S.vel += 8; },
     setText(t) { text = t || ' '; retex(); },
     setSeason(s) { if (s === season) return; season = s; retex(); S.studT = s === 'dubb' ? 1 : 0; if (reduce) S.stud = S.studT * 2; S.studDirty = true; if (!reduce) S.vel += 5; },
-    scan(cb) { S.scan = { t: clock, cb }; },
+    scan(cb) { S.scan = { t: performance.now(), cb }; },
     project(name) { const a = ANCH[name]; if (!a) return null; V3.copy(a); yawG.localToWorld(V3); const z = V3.z; V3.project(cam); return { x: (V3.x * 0.5 + 0.5) * vw, y: (-V3.y * 0.5 + 0.5) * vh, z }; },
     kick(v) { if (!reduce) S.vel += v; }, rev(on) { S.rev = !!on; }, speed() { return S.vel; }, where() { return P; },
     setVisible(v) { extVis = !!v; },

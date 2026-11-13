@@ -92,6 +92,17 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stro
 
 /* hero */
 .hero{position:relative}
+.hero-meta{position:relative;z-index:2}
+.trustpill{display:inline-flex;flex-wrap:wrap;gap:4px 10px;margin-top:16px;font-size:.86rem;font-weight:700;color:var(--ash);max-width:320px}
+.trustpill i{font-style:normal;color:var(--red)}
+.hq-link{position:relative;z-index:2;justify-self:start;display:inline-block;margin-top:10px;font-size:.95rem;font-weight:800;color:var(--paper);text-decoration:none;border-bottom:2px solid var(--red);width:max-content}
+.hq-link:active{color:var(--ember)}
+.scrollhint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:2;display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--ash);pointer-events:none;white-space:nowrap}
+.scrollhint svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;animation:bob 1.8s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+.js .scrollhint{opacity:0;animation:fade .7s 1.2s var(--out) forwards}
+.ready .scrollhint{animation:none;opacity:1}
+.scrollhint.gone{opacity:0;transition:opacity .4s}
 .hero .wrap{position:relative;display:grid;grid-template-rows:auto auto auto 1fr;min-height:calc(100svh - var(--demo-h) - 62px - 76px);padding-bottom:0}
 .hero h1{font-size:clamp(2.3rem,11.4vw,5.6rem);position:relative;z-index:2;padding-top:8px;overflow-wrap:normal;white-space:nowrap}
 .hero h1 span{display:block;overflow:clip}
@@ -151,6 +162,9 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stro
 .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.07;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}
 .dragzone{position:absolute;inset:0;touch-action:pan-y;cursor:grab}
 .dragzone.grabbing{cursor:grabbing}
+/* the story's drag layer must never cover the cards it floats behind */
+#dragStory{z-index:2}
+#dragHero{touch-action:none} /* hold-to-burnout must survive small thumb drift */
 .sec,.foot{position:relative;z-index:3}
 .sec.dark,.foot{background:var(--black)}
 .sheetlike{border-radius:26px 26px 0 0;margin-top:-26px}
@@ -505,7 +519,9 @@ table.t tr:last-child td{border-bottom:0}
 .ctip b{display:block;font-size:1.05rem}
 .ctip p{color:var(--ash);font-size:.92rem;margin-top:4px}
 .ctip .btn{margin:12px 0 0 5px}
-.cdock{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:0 14px calc(12px + env(safe-area-inset-bottom));display:grid;gap:10px;max-width:820px;margin:0 auto}
+.cdock{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:0 12px calc(12px + env(safe-area-inset-bottom));display:grid;gap:10px;max-width:820px;margin:0 auto}
+.ccats,.copts{min-width:0}
+.cbar{max-width:100%;overflow:hidden}
 .ccam{position:absolute;right:14px;top:126px;z-index:2;display:grid;gap:6px;justify-items:end}
 .ccam button{border:1px solid var(--lift);border-radius:999px;background:var(--glass);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:var(--ash);font-weight:700;font-size:.76rem;padding:7px 12px;transition:border-color .2s,color .2s,transform .12s var(--out)}
 .ccam button[aria-pressed=true]{background:var(--candy);border-color:transparent;color:var(--paper);box-shadow:0 8px 20px -12px var(--red)}
@@ -531,6 +547,9 @@ table.t tr:last-child td{border-bottom:0}
 .cbar .btn > span{gap:0}
 .incfg .bar{transform:translateY(110%)}
 .bar{transition:transform .35s var(--out)}
+.cfgcall{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:49;display:grid;place-items:center;width:50px;height:50px;border-radius:50%;background:var(--candy);color:var(--paper);box-shadow:0 12px 26px -12px var(--red);opacity:0;pointer-events:none;transition:opacity .3s,transform .4s var(--spring);transform:scale(.6)}
+.incfg .cfgcall{opacity:1;pointer-events:auto;transform:none}
+.cfgcall .i{width:22px;height:22px}
 .nogl .cfg-sec{display:none}
 @media(min-width:900px){
   .cfg-sec{height:220vh}

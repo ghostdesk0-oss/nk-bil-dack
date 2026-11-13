@@ -4,6 +4,14 @@ Mistakes already made in this repo, so no one makes them twice. Newest first.
 Format: what happened, the rule, and how it is enforced (`check.mjs` rule ID, test, or "manual").
 When a manual lesson bites a second time, turn it into a check.
 
+## L-012 New elements inherit unintended styles and grid rows
+**Happened:** an `href="#kontakt"` anchor matched the `#kontakt` ID selector (light background,
+padding) and a hero link stretched tall because the hero grid's fixed template rows ran out and
+implicit rows shared leftover space.
+**Rule:** scope section styles to classes or check new elements against ID selectors; count grid
+children against `grid-template-rows` when adding markup.
+**Enforced:** manual.
+
 ## L-011 A throwing wait_for_function expression fails the test instantly
 **Happened:** `wait_for_function("document.querySelector('.kpis').textContent...")` rejected with
 "Cannot read properties of null" while the admin view was still rendering, instead of polling on.

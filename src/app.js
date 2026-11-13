@@ -10,7 +10,14 @@ var WD=['sön','mån','tis','ons','tors','fre','lör'],WDL=['söndag','måndag',
 var MON=['jan','feb','mars','april','maj','juni','juli','aug','sep','okt','nov','dec'];
 var nice=function(s){var d=D(s);return WD[d.getDay()]+' '+d.getDate()+' '+MON[d.getMonth()]};
 var ic=function(n){return '<svg class="i"><use href="#i-'+n+'"/></svg>'};
-var now=new Date(),TODAY=iso(now);
+// shop clock: always Europe/Stockholm, never the visitor's device timezone
+var TZF=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+var WDS={sön:0,mån:1,tis:2,ons:3,tors:4,fre:5,lör:6};
+function sweNow(){var o={};TZF.formatToParts(new Date()).forEach(function(p){o[p.type]=p.value});
+  var d=new Date(+o.year,+o.month-1,+o.day);
+  return {date:o.year+'-'+o.month+'-'+o.day,day:WDS[o.weekday],hour:+o.hour,min:+o.minute,mins:+o.hour*60+ +o.minute,
+    getDay:function(){return d.getDay()},getHours:function(){return +o.hour},getMinutes:function(){return +o.min},getDate:function(){return d.getDate()},getMonth:function(){return d.getMonth()},getFullYear:function(){return d.getFullYear()}};}
+var now=sweNow(),TODAY=now.date;
 
 /* ---------- catalogue ---------- */
 var SERVICES=[
@@ -92,6 +99,9 @@ function seed(){
 function save(){try{localStorage.setItem(KEY,JSON.stringify({d:TODAY,S:S}))}catch(e){}}
 function init(){try{var j=JSON.parse(localStorage.getItem(KEY));if(j&&j.d===TODAY&&j.S){S=j.S;return}}catch(e){}seed()}
 init();
+// keep open tabs in sync: a booking made in one tab shows up in Verkstaden in the other
+window.addEventListener('storage',function(e){if(e.key!==KEY||!e.newValue)return;
+  try{var j=JSON.parse(e.newValue);if(j&&j.d===TODAY&&j.S){S=j.S;if(!$('#admin').hidden)renderAdmin();renderTyres();setCart()}}catch(x){}});
 try{if(sessionStorage.getItem('nk-demox'))document.querySelector('.demo').classList.add('off')}catch(e){}
 var cust=function(id){return S.customers.filter(function(c){return c.id===id})[0]};
 
@@ -110,6 +120,7 @@ function pose(){
   var vw=window.innerWidth,m=vw<900,g=prog(),p=g.p,q=g.q;
   if(g.y>G.S0+G.L+window.innerHeight)return null;
   var hx=m?vw*.6:G.sL+G.sW*.5,hy=G.sTop+G.sH*(m?.46:.46)-g.y,hd=m?Math.min(G.sH*.98,vw*.78):Math.min(G.sH*.72,G.sW*.8);
+  if(vw<=520){hx=vw*.5;hd=Math.min(hd,vw*.64)} // narrow phones: centre the wheel, cap the diameter
   if(m&&(FOCUS||SCAN==='done')&&q<.25){var ch=($('#gcard').offsetHeight||210)+96,ah=window.innerHeight-G.dm-ch;hx=vw*.5;hy=G.dm+ah*.52;hd=Math.min(vw*.74,ah*.8)}
   if(FOCUS&&q<.25){var fo=FOC[FOCUS];return {active:true,lock:true,x:hx+hd*fo.dx,y:hy+hd*fo.dy,d:hd*fo.s,yaw:fo.yaw,pitch:0,cam:fo.cam,floor:1,temp:0,snow:0,spin:.06,e:0,f:1}}
   if(SCAN&&q<.25)return {active:true,lock:true,x:hx,y:hy,d:hd*(SCAN==='done'?.92:1.04),yaw:-1.08,pitch:0,cam:.15,floor:1,temp:0,snow:0,spin:.25,e:0,f:1};
@@ -131,7 +142,9 @@ function hotLoop(){
     var y=window.scrollY,near=y<G.S0*.5&&!$('#site').hidden;
     var show=near&&y<30&&!FOCUS&&!SCAN&&performance.now()-bornAt>2600;
     for(var i=0;i<3;i++){var nm=HS[i].dataset.v,pt=near?wheel.project(nm):null;
-      HS[i].classList.toggle('on',!!(show&&pt));if(pt){
+      var hsOn=!!(show&&pt);HS[i].classList.toggle('on',hsOn);
+      if(hsOn){HS[i].removeAttribute('inert');HS[i].removeAttribute('tabindex')}else{HS[i].setAttribute('inert','');HS[i].setAttribute('tabindex','-1')}
+      if(pt){
         // keep the callout dots and their badges inside the viewport on narrow phones
         var cx=Math.max(28,Math.min(window.innerWidth-28,pt.x)),cy=Math.max(G.dm+34,Math.min(window.innerHeight-116,pt.y));
         HS[i].style.transform='translate3d('+cx.toFixed(1)+'px,'+cy.toFixed(1)+'px,0)';
@@ -139,15 +152,15 @@ function hotLoop(){
         var by=Math.max(G.dm+8,Math.min(window.innerHeight-BG[i].offsetHeight-96,cy+off[1]));
         BG[i].style.transform='translate3d('+bx.toFixed(1)+'px,'+by.toFixed(1)+'px,0)'}
       BG[i].classList.toggle('on',!!(BADGES&&near&&pt&&y<30))}
-    if(near)requestAnimationFrame(run);else{hotOn=false;HS.forEach(function(h){h.classList.remove('on')});BG.forEach(function(b){b.classList.remove('on')})}
+    if(near)requestAnimationFrame(run);else{hotOn=false;HS.forEach(function(h){h.classList.remove('on');h.setAttribute('inert','');h.setAttribute('tabindex','-1')});BG.forEach(function(b){b.classList.remove('on')})}
   })();
 }
 onScrollFns.push(function(){if(window.scrollY>40&&(FOCUS||SCAN))closeCard();if(!hotOn&&window.scrollY<10)hotLoop()});
 var HOT={tread:['Däckbyte','Vi skiftar hjulen, kollar lufttrycket och mäter mönsterdjupet medan du tar en kaffe.','skifte'],
   sidewall:['Balansering','Nya däck monteras och balanseras så att ratten ligger still i alla farter.','montering'],
   rim:['Däckhotell','Vi förvarar dina hjul över säsongen och säger till när det är dags att byta.','hotell']};
-function card(html){if(wheel)document.body.classList.add('inspect');var g=$('#gcard');g.innerHTML=html+'<button class="x" data-act="cardx" aria-label="Stäng">'+ic('x')+'</button>';g.classList.add('on')}
-function closeCard(){FOCUS=null;SCAN=null;BADGES=false;document.body.classList.remove('inspect');$('#gcard').classList.remove('on')}
+function card(html){if(wheel)document.body.classList.add('inspect');var g=$('#gcard');g.hidden=false;g.innerHTML=html.replace('<h3 class="d">','<h3 class="d" id="gcardTitle">')+'<button class="x" data-act="cardx" aria-label="Stäng">'+ic('x')+'</button>';g.classList.add('on')}
+function closeCard(){FOCUS=null;SCAN=null;BADGES=false;document.body.classList.remove('inspect');var g=$('#gcard');g.classList.remove('on');g.hidden=true}
 function openHot(v){var h=HOT[v],sv2=svc(h[2]);FOCUS=v;SCAN=null;BADGES=false;
   card('<h3 class="d">'+h[0]+'</h3><p>'+h[1]+'</p><p class="pricetag">'+pTxt(sv2)+(sv2.unit?' '+sv2.unit:'')+(sv2.id==='lyktor'?'':', exempelpris')+'</p><div class="acts"><button class="btn sm" data-act="book" data-svc="'+h[2]+'"><span>Boka '+h[0].toLowerCase()+'</span></button></div>')}
 /* reg-nummer: laser scan, then badges and a result card */
@@ -188,8 +201,9 @@ function startWheel(){
     cio.observe(document.querySelector('.hero'));cio.observe($('#story'));
   }
   var dh=$('#dragHero'),revOff=function(){revving=false;wheel.rev(false);humStop()};
-  dh.addEventListener('pointerdown',function(){revving=true;wheel.rev(true);humStart();smokeLoop()});dh.addEventListener('pointerup',revOff);dh.addEventListener('pointercancel',revOff);dh.addEventListener('pointerleave',revOff);
-  ['dragHero','dragStory'].forEach(function(id){$('#'+id).addEventListener('pointerdown',function(){$('#hint').classList.add('gone')},{once:true})});
+  dh.addEventListener('pointerdown',function(){revving=true;wheel.rev(true);humStart();if(navigator.vibrate)try{navigator.vibrate(25)}catch(x){}smokeLoop()});dh.addEventListener('pointerup',revOff);dh.addEventListener('pointercancel',revOff);dh.addEventListener('pointerleave',revOff);
+  ['dragHero','dragStory'].forEach(function(id){$('#'+id).addEventListener('pointerdown',function(){$('#hint').classList.add('gone');var sh=document.querySelector('.scrollhint');if(sh)sh.classList.add('gone')},{once:true})});
+  onScrollFns.push(function(){var sh=document.querySelector('.scrollhint');if(sh)sh.classList.toggle('gone',window.scrollY>60)});
   var tt=$('#tyreText'),pin=document.querySelector('.pin');
   tt.addEventListener('focus',function(){if(window.innerWidth>=900)return;pin.classList.add('typing');document.documentElement.classList.add('tw');requestAnimationFrame(function(){var r=CAPS[1].getBoundingClientRect();typeY=r.bottom+112;typing=1})});
   var tyT;tt.addEventListener('blur',function(){clearTimeout(tyT);tyT=setTimeout(function(){if(document.activeElement===tt)return;typing=0;pin.classList.remove('typing');document.documentElement.classList.remove('tw')},320)});
@@ -238,6 +252,7 @@ function renderTyres(){
   setCart();
 }
 function setCart(){var n=S.cart.reduce(function(a,i){return a+i.qty},0),e=$('#cartn'),bm=$('#barMain');e.textContent=n;e.setAttribute('data-n',n);
+  e.parentNode.setAttribute('aria-label',n?'Öppna varukorgen, '+n+' däck':'Öppna varukorgen');
   bm.dataset.act=n?'cart':'book';bm.innerHTML='<span>'+(n?ic('cart')+'Varukorg ('+n+')':'Boka tid')+'</span>'}
 function renderStatic(){
   var hrs=[['Måndag',1,'07–17'],['Tisdag',2,'07–17'],['Onsdag',3,'07–17'],['Torsdag',4,'07–17'],['Fredag',5,'07–16'],['Lördag',6,'Stängt'],['Söndag',0,'Stängt']];
@@ -256,7 +271,7 @@ function vt(fn){if(document.startViewTransition&&!RM){try{var t=document.startVi
 function openFlow(kind,o){
   o=o||{};clearTimeout(closeT);
   var sc=$('#scrim');sc.classList.remove('out');$('#sheet').innerHTML='';
-  W={kind:kind,cfg:o.cfg||null,i:0,shown:-1,svc:o.svc||null,extras:o.extras||[],reg:o.reg||REG||'',model:'',date:null,time:null,name:'',phone:'',note:'',fit:true,err:'',result:null};
+  W={kind:kind,cfg:o.cfg||null,i:0,shown:-1,svc:o.svc||null,extras:o.extras||[],reg:o.reg||REG||'',model:'',date:null,time:null,name:'',phone:'',note:'',email:'',fit:true,err:'',result:null};
   W.steps=kind==='order'?['cart','time','details','done']:kind==='quick'?['quick','time','details','done']:['service','car','time','details','done'];
   if(kind==='booking'&&W.svc)W.i=W.reg.replace(/\s/g,'').length>=5?2:1;
   lastFocus=document.activeElement;document.documentElement.style.overflow='hidden';
@@ -283,7 +298,7 @@ function renderSheet(){
     b=SERVICES.map(function(s){return '<button class="opt" data-act="pick" data-v="'+s.id+'" aria-pressed="'+(W.svc===s.id)+'"><b>'+s.name+'</b><em>'+pTxt(s)+'</em><span>Cirka '+s.mins+' min</span></button>'}).join('');
   }
   if(st==='quick'){title=W.cfg?'Boka med ditt val':'Snabboffert';
-    b=(W.cfg?'<div class="cfgsum"><b>'+esc(W.cfg.rim)+' fälg, '+esc(W.cfg.tyre.toLowerCase())+'</b><span>Valt i 3D-vyn. Lacken är bara för att se helheten.</span></div>':'')+
+    b=(W.cfg?'<div class="cfgsum"><b>'+esc(W.cfg.rim)+' fälg, '+esc(W.cfg.tyre.toLowerCase())+(W.cfg.paint?', '+esc(W.cfg.paint):'')+'</b><span>Valt i 3D-vyn. Lacken är bara för att se helheten.</span></div>':'')+
       '<label class="field"><span>Regnummer</span><div class="reg"><i></i><input id="fReg" value="'+esc(W.reg)+'" maxlength="7" placeholder="ABC 123" autocomplete="off" autocapitalize="characters"></div></label>'+
       '<span class="flab">Vad gäller det?</span><div class="qopts">'+QS.map(function(q){var s2=svc(q[1]);return '<button class="opt" data-act="pick" data-v="'+q[1]+'" aria-pressed="'+(W.svc===q[1])+'"><b>'+q[0]+'</b><span>'+pTxt(s2)+'</span></button>'}).join('')+'</div>';
   }
@@ -318,6 +333,7 @@ function renderSheet(){
     b=sum+'<label class="field"><span>Namn</span><input id="fName" value="'+esc(W.name)+'" autocomplete="name"></label>'+
       '<label class="field"><span>Mobilnummer</span><input id="fPhone" value="'+esc(W.phone)+'" inputmode="tel" autocomplete="tel"></label>'+
       (W.kind==='order'&&W.fit?'<label class="field"><span>Regnummer</span><input id="fReg" value="'+esc(W.reg)+'" maxlength="7" style="text-transform:uppercase"></label>':'')+
+      '<label class="field"><span>Mejladress (frivilligt)</span><input id="fEmail" type="email" value="'+esc(W.email)+'" inputmode="email" autocomplete="email"></label>'+
       '<label class="field"><span>Meddelande till verkstaden (frivilligt)</span><textarea id="fNote" rows="2">'+esc(W.note)+'</textarea></label>'+
       '<p class="small" style="color:var(--smoke)">Du betalar på plats. I den skarpa versionen går det också med Swish eller Klarna.</p>';
   }
@@ -341,7 +357,7 @@ function renderSheet(){
   var pk=$('.picked',body);if(pk&&pk.scrollIntoView)pk.scrollIntoView({block:'nearest'});
   if(!same){W.shown=W.i;if(W.err){}else try{$('#sheetTitle').focus({preventScroll:true})}catch(e){}}
 }
-function grab(){['Reg','Model','Name','Phone','Note'].forEach(function(k){var e=$('#f'+k);if(e)W[k.toLowerCase()]=e.value.trim()});var f=$('#fFit');if(f)W.fit=f.checked}
+function grab(){['Reg','Model','Name','Phone','Note','Email'].forEach(function(k){var e=$('#f'+k);if(e)W[k.toLowerCase()]=e.value.trim()});var f=$('#fFit');if(f)W.fit=f.checked}
 function nextStep(){
   grab();W.err='';var st=W.steps[W.i];
   if(st==='service'&&!W.svc)W.err='Välj vad du vill ha hjälp med.';
@@ -372,9 +388,10 @@ function commit(){
   }
   if(W.kind!=='order'||W.fit){
     var sid=W.kind==='order'?'montering':W.svc;
-    var bk={id:'NK-'+(S.seq++),custId:c.id,reg:reg,model:W.model,svc:sid,mins:svc(sid).mins,date:W.date,time:W.time,status:S.auto?'Bekräftad':'Ny',note:(W.cfg?'Valt i 3D: '+W.cfg.rim+' fälg, '+W.cfg.tyre.toLowerCase()+'. ':'')+(W.extras&&W.extras.length?'Tillval: '+W.extras.map(function(x){return x.n}).join(', ')+'. ':'')+W.note,src:W.kind==='order'?'Webshop':'Webben',isNew:true};
+    var bk={id:'NK-'+(S.seq++),custId:c.id,reg:reg,model:W.model,svc:sid,mins:svc(sid).mins,date:W.date,time:W.time,status:S.auto?'Bekräftad':'Ny',note:(W.cfg?'Valt i 3D: '+W.cfg.rim+' fälg, '+W.cfg.tyre.toLowerCase()+(W.cfg.paint?', '+W.cfg.paint:'')+'. ':'')+(W.extras&&W.extras.length?'Tillval: '+W.extras.map(function(x){return x.n}).join(', ')+'. ':'')+W.note,src:W.kind==='order'?'Webshop':'Webben',isNew:true};
     S.bookings.push(bk);res.ref=res.ref||bk.id;res.when=true;res.date=W.date;res.time=W.time;
   }
+  if(W.email)c.email=W.email;
   W.result=res;save();renderTyres();
 }
 
@@ -562,6 +579,8 @@ function closeTip(){CF.tip=null;var t=$('#ctip');if(t)t.classList.remove('on');[
   renderCfg();
 })();
 $('#quote').addEventListener('submit',function(e){e.preventDefault();var r=$('#qReg').value.trim();openFlow('quick',{svc:QV,reg:r})});
+/* keep the quick-quote plate in step with the hero scan */
+document.addEventListener('input',function(e){if(e.target.id==='heroReg')$('#qReg').value=e.target.value});
 
 var tT;function toast(m){var t=$('#toast');t.textContent=m;t.classList.remove('on');void t.offsetWidth;t.classList.add('on');clearTimeout(tT);tT=setTimeout(function(){t.classList.remove('on')},2600)}
 /* tactile sound: pure Web Audio synthesis, no files. Muted until the header toggle is switched on. */
@@ -599,7 +618,7 @@ document.addEventListener('click',function(e){
   else if(a==='book'){closeCard();openFlow('booking',{svc:d.svc})}
   else if(a==='season')setSeason(d.v);
   else if(a==='qpick'){QV=d.v;renderCards()}
-  else if(a==='cfgbook'){closeTip();openFlow('quick',{svc:'nyadack',cfg:{rim:RIMN[CF.rim],tyre:SEAN[SEASON]}})}
+  else if(a==='cfgbook'){closeTip();openFlow('quick',{svc:'nyadack',cfg:{rim:RIMN[CF.rim],tyre:SEAN[SEASON],paint:PAINTN[CF.paint]}})}
   else if(a==='ccat'){CF.cat=d.v;renderCfg()}
   else if(a==='copt')cfgPick(d.k,d.v);
   else if(a==='hwy'){CF.hwy=!CF.hwy;el.setAttribute('aria-pressed',CF.hwy);closeTip();if(car)car.setHighway(CF.hwy)}
@@ -695,16 +714,19 @@ var smokeOn=false,PT=[],acc=0,revving=false;
 function smokeLoop(){
   if(smokeOn||RM||!wheel)return;smokeOn=true;
   var c=$('#smoke'),g=c.getContext('2d'),prev=performance.now(),col=getComputedStyle(document.documentElement).getPropertyValue('--smokec').trim()||'rgba(210,200,198,.5)';
-  c.width=c.clientWidth;c.height=c.clientHeight;
+  // one pre-rendered sprite instead of a createRadialGradient call per particle per frame
+  var spr=document.createElement('canvas');spr.width=spr.height=128;{var sg=spr.getContext('2d'),gr=sg.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,col);gr.addColorStop(1,'rgba(210,200,198,0)');sg.fillStyle=gr;sg.fillRect(0,0,128,128)}
+  var dprS=Math.min(window.devicePixelRatio||1,2);
+  c.width=c.clientWidth*dprS;c.height=c.clientHeight*dprS;g.setTransform(dprS,0,0,dprS,0,0);
   (function run(n){
     var dt=Math.min(.05,(n-prev)/1000);prev=n;var sp=Math.abs(wheel.speed()),P=wheel.where();humTick(sp);
-    if(sp>12&&window.scrollY<G.S0*.4){acc+=Math.min(90,(sp-12)*4)*dt;for(;acc>=1;acc--)if(PT.length<130)PT.push({x:P.x-P.d*.04+(Math.random()-.5)*P.d*.12,y:P.y+P.d*.47,vx:-(50+Math.random()*210),vy:-(8+Math.random()*52),r:P.d*.035+Math.random()*P.d*.04,a:.13+Math.random()*.12,l:0})}
-    g.clearRect(0,0,c.width,c.height);
-    for(var j=PT.length-1;j>=0;j--){var p=PT[j];p.l+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.985;p.vy*=.985;p.r+=dt*P.d*.1;var al=p.a*(1-p.l/1.9);
+    if(sp>12&&window.scrollY<G.S0*.4){acc+=Math.min(140,(sp-12)*6)*dt;for(;acc>=1;acc--)if(PT.length<180)PT.push({x:P.x-P.d*.04+(Math.random()-.5)*P.d*.16,y:P.y+P.d*.47,vx:-(50+Math.random()*230),vy:-(10+Math.random()*64),r:P.d*.05+Math.random()*P.d*.06,a:.2+Math.random()*.18,l:0})}
+    g.clearRect(0,0,c.clientWidth,c.clientHeight);
+    for(var j=PT.length-1;j>=0;j--){var p=PT[j];p.l+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.985;p.vy*=.985;p.r+=dt*P.d*.12;var al=p.a*(1-p.l/2.1);
       if(al<=0){PT.splice(j,1);continue}
-      var gr=g.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r);gr.addColorStop(0,col);gr.addColorStop(1,'rgba(210,200,198,0)');g.globalAlpha=al;g.fillStyle=gr;g.beginPath();g.arc(p.x,p.y,p.r,0,7);g.fill()}
+      g.globalAlpha=al;g.drawImage(spr,p.x-p.r,p.y-p.r,p.r*2,p.r*2)}
     g.globalAlpha=1;
-    if(PT.length||sp>12||revving)requestAnimationFrame(run);else{smokeOn=false;g.clearRect(0,0,c.width,c.height)}
+    if(PT.length||sp>12||revving)requestAnimationFrame(run);else{smokeOn=false;g.clearRect(0,0,c.clientWidth,c.clientHeight)}
   })(prev);
 }
 (function(){var els=[].slice.call(document.querySelectorAll('.sec h2:not(.addr)'));
