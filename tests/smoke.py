@@ -86,6 +86,12 @@ async def main():
         assert await js("document.documentElement.style.overflow") == ""
 
         # car configurator: swap rim and paint, book from the action bar
+        await js("window.scrollTo({top: document.getElementById('bygg').offsetTop + innerHeight*0.6, behavior:'instant'})")
+        await pg.wait_for_timeout(1200)
+        # L-000: camera presets must not overlap the highway button
+        overlap = await js("""(function(){var h=document.getElementById('hwy').getBoundingClientRect(),c=document.querySelector('.ccam').getBoundingClientRect();
+          return c.top < h.bottom - 2 && c.bottom > h.top + 2 && c.left < h.right - 2 && c.right > h.left + 2})()""")
+        assert not overlap, "camera presets overlap the highway button"
         await js("document.querySelector('[data-act=ccat][data-v=falg]').click()")
         await js("document.querySelector('[data-act=copt][data-v=black]').click()")
         assert "Black Edition" in await js("document.getElementById('csel').textContent")

@@ -62,4 +62,5 @@ source for either.
 the wheel slid over the text when scrolling.
 **Rule:** test at 390x640 usable height. The hero, the configurator dock and the bottom bar
 must all fit without overlap.
-**Enforced:** manual; `tests/smoke.py` runs at 390x760.
+**Enforced:** `tests/smoke.py` runs at 390x760 and asserts the camera presets never overlap
+the highway button (`.ccam` vs `#hwy` bounding boxes); manual elsewhere.
