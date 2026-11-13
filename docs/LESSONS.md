@@ -4,6 +4,12 @@ Mistakes already made in this repo, so no one makes them twice. Newest first.
 Format: what happened, the rule, and how it is enforced (`check.mjs` rule ID, test, or "manual").
 When a manual lesson bites a second time, turn it into a check.
 
+## L-011 A throwing wait_for_function expression fails the test instantly
+**Happened:** `wait_for_function("document.querySelector('.kpis').textContent...")` rejected with
+"Cannot read properties of null" while the admin view was still rendering, instead of polling on.
+**Rule:** guard every polled expression: `!!document.querySelector('.x') && ...`.
+**Enforced:** manual.
+
 ## L-010 IntersectionObserver is useless on a fixed canvas
 **Happened:** pausing the hero wheel with an IntersectionObserver on its canvas never fired,
 because `#wheel` is `position:fixed` and always intersects the viewport.
