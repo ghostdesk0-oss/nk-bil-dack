@@ -14,7 +14,9 @@ Always build and run the smoke test before committing. Screenshots land in `test
 ## Layout
 
 - `src/index.html` markup, `src/styles.css` styles, `src/app.js` page logic
-- `src/wheel/wheel.js` the 3D scene. The page drives it through `pose()` in `app.js`
+- `src/wheel/wheel.js` the tyre scene. The page drives it through `pose()` in `app.js`
+- `src/car/car.js` the car configurator. Its own canvas, renders only while on screen
+- `docs/PROJECT.md` the brief, `docs/ROADMAP.md` the phases. Read both before planning work
 - Site copy is Swedish. Code, comments and commits are English
 
 ## Rules that have already cost a round of rework
@@ -33,3 +35,7 @@ Always build and run the smoke test before committing. Screenshots land in `test
   the scroll story need an opaque background and `z-index:3` to cover it.
 - **Stacking:** `.pin` is sticky and therefore its own stacking context. Anything that
   must sit *behind* the wheel (the ghost words) lives outside it as a fixed layer.
+- **Two WebGL canvases.** The tyre canvas is fixed and full-viewport; the car canvas lives in
+  `#bygg` and starts only when that section is near. Keep it that way for load time.
+- **Car framing:** `car.setPad(top, bottom)` keeps the car in the band between the title and
+  the controls. Call it again if you change the height of either.

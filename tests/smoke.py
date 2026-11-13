@@ -46,7 +46,10 @@ async def main():
 
         # workshop view shows the new booking
         await pg.click("[data-act=toadmin]")
-        await pg.wait_for_selector("#amain .row.new")
+        await pg.wait_for_selector("#tabs button", timeout=60000)
+        await js("document.querySelector('[data-act=tab][data-v=idag]').click()")
+        await pg.wait_for_selector("#amain .brief", timeout=60000)
+        assert await js("document.querySelectorAll('.blk').length") >= 1
         for tab in ["idag", "kunder", "hotell", "ordrar", "lager", "bokningar"]:
             await js(f"document.querySelector('[data-act=tab][data-v={tab}]').click()")
             await pg.wait_for_timeout(350)
@@ -54,6 +57,7 @@ async def main():
 
         # season switch drives the shop, then checkout with fitting
         await pg.click("[data-view=site]")
+        await pg.wait_for_function("!document.getElementById('site').hidden", timeout=60000)
         await pg.wait_for_timeout(500)
         await js("document.querySelector('#dack [data-act=season][data-v=dubb]').click()")
         await pg.wait_for_timeout(400)
@@ -73,6 +77,24 @@ async def main():
         await pg.click("#sheet .x")
         await pg.wait_for_timeout(400)
         assert await js("document.documentElement.style.overflow") == ""
+
+        # car configurator: swap rim and paint, book from the action bar
+        await js("document.querySelector('[data-act=ccat][data-v=falg]').click()")
+        await js("document.querySelector('[data-act=copt][data-v=black]').click()")
+        assert "Black Edition" in await js("document.getElementById('csel').textContent")
+        await js("document.querySelector('[data-act=cfgbook]').click()")
+        await pg.wait_for_selector(".cfgsum")
+        await pg.fill("#fReg", "xyz12a")
+        await pg.click("[data-act=next]")
+        await pg.wait_for_selector(".slot:not([disabled])")
+        await js("document.querySelector('.slot:not([disabled])').click()")
+        await pg.click("[data-act=next]")
+        await pg.fill("#fName", "Tredje Person")
+        await pg.fill("#fPhone", "0701740697")
+        await pg.click("[data-act=next]")
+        await pg.wait_for_selector("[data-act=toadmin]")
+        await pg.click("#sheet .x")
+        await pg.wait_for_timeout(400)
 
         # tyre-hotel builder
         await js("document.querySelector('#hotelOpts input[data-x=wash]').click()")

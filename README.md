@@ -24,11 +24,13 @@ Röktestet behöver `pip install playwright && playwright install chromium`.
 | `src/index.html` | Sidans markup, med platshållare för stil och script |
 | `src/styles.css` | All CSS. Färger och rörelse ligger som variabler överst i `:root` |
 | `src/app.js` | Sidlogik: bokning, varukorg, verkstadsvy, scroll-berättelsen, hotspots, regskanning |
-| `src/wheel/wheel.js` | 3D-scenen i Three.js: hjul, golv med spegling, dimma, snö, dubbar, laser |
+| `src/wheel/wheel.js` | 3D-hjulet i hero och scroll-berättelsen: golv med spegling, dimma, snö, dubbar, laser |
+| `src/car/car.js` | Bilkonfiguratorn: bil, fyra hjul, fälg- och lackbyten, fjädring, 100 km/h-läge |
 | `scripts/build.mjs` | Bäddar in typsnitt, CSS, 3D-bundle och app-script i `dist/index.html` |
 | `scripts/dev.mjs` | Lokal förhandsvisning med ombyggnad vid ändring |
 | `tests/smoke.py` | Går igenom regskanning, bokning, köp och verkstadsvyn |
-| `docs/ROADMAP.md` | Vad som krävs för att gå från demo till skarp drift |
+| `docs/PROJECT.md` | Kunden, problemet, målet och öppna frågor |
+| `docs/ROADMAP.md` | Faserna från demo till skarp drift |
 
 ## Så hänger 3D-scenen ihop med sidan
 

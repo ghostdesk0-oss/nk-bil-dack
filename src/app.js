@@ -22,6 +22,7 @@ var SERVICES=[
  {id:'lyktor',name:'Lyktpolering',desc:'Våtslip och polering av strålkastarna. Bättre sikt i mörkret.',mins:60,price:1500},
  {id:'ac',name:'AC-service',desc:'Påfyllning och kontroll så att kylan och avfuktningen fungerar.',mins:60,price:995},
  {id:'olja',name:'Oljebyte',desc:'Ny olja och nytt filter, anpassat efter din motor.',mins:60,price:1295,from:true},
+ {id:'nyadack',name:'Nya däck och fälgar',desc:'Vi tar fram däck och fälgar som passar bilen och ger dig ett pris innan du bestämmer dig.',mins:60,price:null},
  {id:'verkstad',name:'Service och reparation',desc:'Service, felsökning och reparationer. Berätta vad det gäller så får du ett pris innan vi börjar.',mins:120,price:null}
 ];
 var svc=function(id){return SERVICES.filter(function(s){return s.id===id})[0]};
@@ -56,7 +57,8 @@ var slotFree=function(dateIso,t,mins,c){var s=toMin(t);if(s+mins>closeHour(dateI
   for(var m=s;m<s+mins;m+=30)if((c[toT(m)]||0)>=2)return false;return true};
 
 /* ---------- state ---------- */
-var KEY='nk-demo-v4',S;
+var KEY='nk-demo-v5',S;
+var QS=[['Däckskifte','skifte'],['Däckhotell','hotell'],['Nya däck och fälgar','nyadack'],['Bilservice','verkstad']];
 function seed(){
   var r=20261112;var rnd=function(){r=(r*1103515245+12345)&0x7fffffff;return r/0x7fffffff};
   var names=['Exempel Andersson','Exempel Bergström','Exempel Carlsson','Exempel Dahl','Exempel Eriksson','Exempel Forsberg','Exempel Gustavsson','Exempel Holm','Exempel Isaksson','Exempel Jonsson','Exempel Karlberg','Exempel Lindh'];
@@ -196,6 +198,12 @@ function renderServices(){
       '<div class="svc-body"><div><div class="svc-in"><p>'+s.desc+' Tar cirka '+s.mins+' minuter.'+(s.unit?' Priset gäller '+s.unit+'.':'')+'</p><button class="btn sm ink" data-act="book" data-svc="'+s.id+'" '+(o?'':'tabindex="-1"')+'><span>Boka '+s.name.toLowerCase()+'</span></button></div></div></div></div>';
   }).join('');
 }
+var FEAT=[['skifte','Däckskifte','Byte till dina egna hjul, lufttryck och mönsterdjup.'],['hotell','Däckhotell','Vi förvarar hjulen och skiftar vår och höst.'],['hjulinst','Hjulinställning','Rätt vinklar ger jämnt slitage och en bil som går rakt.'],['verkstad','Service och reparation','Felsökning och reparationer. Pris innan vi börjar.']];
+function renderCards(){
+  $('#scards').innerHTML=FEAT.map(function(f){var s2=svc(f[0]);return '<article class="scard"><h4>'+f[1]+'</h4><p>'+f[2]+'</p><div class="pm"><b>'+pTxt(s2)+'</b><span>'+(s2.unit?s2.unit:'cirka '+s2.mins+' min')+'</span></div><button class="btn sm" data-act="book" data-svc="'+f[0]+'"><span>Boka</span></button></article>'}).join('');
+  $('#qsvc').innerHTML=QS.map(function(q){return '<button type="button" data-act="qpick" data-v="'+q[1]+'" aria-pressed="'+(QV===q[1])+'">'+q[0]+'</button>'}).join('');
+}
+var QV='skifte';
 function renderSize(dir,which){
   var dg=function(k,label){return '<div class="digit"><button data-act="step" data-k="'+k+'" data-d="1" aria-label="Öka '+label+'">'+ic('up')+'</button><span class="v"><b class="'+(which===k?(dir>0?'up':'dn'):'')+'">'+F[k]+'</b></span><button data-act="step" data-k="'+k+'" data-d="-1" aria-label="Minska '+label+'">'+ic('dn')+'</button></div>'};
   $('#size').innerHTML=dg('w','bredd')+'<span class="sep">/</span>'+dg('p','profil')+'<span class="sep">R</span>'+dg('r','fälgstorlek');
@@ -207,7 +215,7 @@ function renderSeason(){
     el.style.setProperty('--i',i);[].forEach.call(el.querySelectorAll('button'),function(b){b.setAttribute('aria-pressed',b.dataset.v===SEASON)});
   });
 }
-function setSeason(v){if(v===SEASON)return;SEASON=v;F.type=v;if(wheel)wheel.setSeason(v);renderSeason();renderTyres()}
+function setSeason(v){if(v===SEASON)return;SEASON=v;F.type=v;if(wheel)wheel.setSeason(v);if(car)car.setSeason(v);renderSeason();renderTyres();if(window.renderCfg)renderCfg()}
 function renderTyres(){
   var dim=dimStr();
   $('#tyres').innerHTML=PRODUCTS.filter(function(p){return p.type===F.type}).map(function(p){
@@ -233,12 +241,12 @@ function renderStatic(){
 /* ---------- booking / checkout sheet ---------- */
 var W=null;
 var RM=window.matchMedia('(prefers-reduced-motion: reduce)').matches,closeT=null,lastFocus=null;
-function vt(fn){if(document.startViewTransition&&!RM){try{document.startViewTransition(fn);return}catch(e){}}fn()}
+function vt(fn){if(document.startViewTransition&&!RM){try{var t=document.startViewTransition(fn),no=function(){};t.ready.catch(no);t.finished.catch(no);t.updateCallbackDone.catch(no);return}catch(e){}}fn()}
 function openFlow(kind,o){
   o=o||{};clearTimeout(closeT);
   var sc=$('#scrim');sc.classList.remove('out');$('#sheet').innerHTML='';
-  W={kind:kind,i:0,shown:-1,svc:o.svc||null,extras:o.extras||[],reg:o.reg||REG||'',model:'',date:null,time:null,name:'',phone:'',note:'',fit:true,err:'',result:null};
-  W.steps=kind==='order'?['cart','time','details','done']:['service','car','time','details','done'];
+  W={kind:kind,cfg:o.cfg||null,i:0,shown:-1,svc:o.svc||null,extras:o.extras||[],reg:o.reg||REG||'',model:'',date:null,time:null,name:'',phone:'',note:'',fit:true,err:'',result:null};
+  W.steps=kind==='order'?['cart','time','details','done']:kind==='quick'?['quick','time','details','done']:['service','car','time','details','done'];
   if(kind==='booking'&&W.svc)W.i=W.reg.replace(/\s/g,'').length>=5?2:1;
   lastFocus=document.activeElement;document.documentElement.style.overflow='hidden';
   sc.classList.add('on');renderSheet();
@@ -263,6 +271,11 @@ function renderSheet(){
   if(st==='service'){title='Vad gäller det?';
     b=SERVICES.map(function(s){return '<button class="opt" data-act="pick" data-v="'+s.id+'" aria-pressed="'+(W.svc===s.id)+'"><b>'+s.name+'</b><em>'+pTxt(s)+'</em><span>Cirka '+s.mins+' min</span></button>'}).join('');
   }
+  if(st==='quick'){title=W.cfg?'Boka med ditt val':'Snabboffert';
+    b=(W.cfg?'<div class="cfgsum"><b>'+esc(W.cfg.rim)+' fälg, '+esc(W.cfg.tyre.toLowerCase())+'</b><span>Valt i 3D-vyn. Lacken är bara för att se helheten.</span></div>':'')+
+      '<label class="field"><span>Regnummer</span><div class="reg"><i></i><input id="fReg" value="'+esc(W.reg)+'" maxlength="7" placeholder="ABC 123" autocomplete="off" autocapitalize="characters"></div></label>'+
+      '<span class="flab">Vad gäller det?</span><div class="qopts">'+QS.map(function(q){var s2=svc(q[1]);return '<button class="opt" data-act="pick" data-v="'+q[1]+'" aria-pressed="'+(W.svc===q[1])+'"><b>'+q[0]+'</b><span>'+pTxt(s2)+'</span></button>'}).join('')+'</div>';
+  }
   if(st==='car'){title='Vilken bil?';
     b='<label class="field"><span>Regnummer</span><div class="reg"><i></i><input id="fReg" value="'+esc(W.reg)+'" maxlength="7" placeholder="ABC 123" autocomplete="off"></div></label>'+
       '<label class="field"><span>Bilmodell (frivilligt)</span><input id="fModel" value="'+esc(W.model)+'" placeholder="Till exempel Volvo V60"></label>'+
@@ -286,7 +299,7 @@ function renderSheet(){
   }
   if(st==='details'){title='Dina uppgifter';next=W.kind==='order'?'Lägg beställningen':'Boka tiden';
     var sum='<div class="sum">';
-    if(W.kind==='booking'){sum+='<div><span>'+svc(W.svc).name+'</span><span>'+pTxt(svc(W.svc))+'</span></div>'+W.extras.map(function(x){return '<div><span>'+x.n+'</span><span>'+kr(x.p)+'</span></div>'}).join('')+'<div><span>Bil</span><span>'+esc(W.reg.toUpperCase())+'</span></div>';
+    if(W.kind!=='order'){sum+='<div><span>'+svc(W.svc).name+'</span><span>'+pTxt(svc(W.svc))+'</span></div>'+W.extras.map(function(x){return '<div><span>'+x.n+'</span><span>'+kr(x.p)+'</span></div>'}).join('')+'<div><span>Bil</span><span>'+esc(W.reg.toUpperCase())+'</span></div>';
       if(W.extras.length)sum+='<div class="tot"><span>Summa</span><span>'+kr(svc(W.svc).price+W.extras.reduce(function(a,x){return a+x.p},0))+'</span></div>'}
     else sum+='<div><span>'+S.cart.reduce(function(a,i){return a+i.qty},0)+' däck'+(W.fit?' med montering':'')+'</span><span>'+kr(cartTotal()+(W.fit?FIT:0))+'</span></div>';
     if(W.date&&W.time&&(W.kind==='booking'||W.fit))sum+='<div><span>Tid</span><span>'+nice(W.date)+' kl. '+W.time+'</span></div>';
@@ -321,7 +334,8 @@ function grab(){['Reg','Model','Name','Phone','Note'].forEach(function(k){var e=
 function nextStep(){
   grab();W.err='';var st=W.steps[W.i];
   if(st==='service'&&!W.svc)W.err='Välj vad du vill ha hjälp med.';
-  if(st==='car'&&W.reg.replace(/\s/g,'').length<5)W.err='Skriv bilens regnummer, till exempel ABC 123.';
+  if((st==='car'||st==='quick')&&W.reg.replace(/\s/g,'').length<5)W.err='Skriv bilens regnummer, till exempel ABC 123.';
+  else if(st==='quick'&&!W.svc)W.err='Välj vad det gäller.';
   if(st==='time'&&!W.time)W.err='Välj en ledig tid.';
   if(st==='details'){
     if(W.name.length<2)W.err='Skriv ditt namn så vi vet vem som kommer.';
@@ -345,9 +359,9 @@ function commit(){
     S.cart.forEach(function(it){var k=it.pid+'|'+it.dim;S.stock[k]=Math.max(0,stockOf(k)-it.qty)});
     S.cart=[];res.ref=o.id;
   }
-  if(W.kind==='booking'||W.fit){
+  if(W.kind!=='order'||W.fit){
     var sid=W.kind==='order'?'montering':W.svc;
-    var bk={id:'NK-'+(S.seq++),custId:c.id,reg:reg,model:W.model,svc:sid,mins:svc(sid).mins,date:W.date,time:W.time,status:'Ny',note:(W.extras&&W.extras.length?'Tillval: '+W.extras.map(function(x){return x.n}).join(', ')+'. ':'')+W.note,src:W.kind==='order'?'Webshop':'Webben',isNew:true};
+    var bk={id:'NK-'+(S.seq++),custId:c.id,reg:reg,model:W.model,svc:sid,mins:svc(sid).mins,date:W.date,time:W.time,status:S.auto?'Bekräftad':'Ny',note:(W.cfg?'Valt i 3D: '+W.cfg.rim+' fälg, '+W.cfg.tyre.toLowerCase()+'. ':'')+(W.extras&&W.extras.length?'Tillval: '+W.extras.map(function(x){return x.n}).join(', ')+'. ':'')+W.note,src:W.kind==='order'?'Webshop':'Webben',isNew:true};
     S.bookings.push(bk);res.ref=res.ref||bk.id;res.when=true;res.date=W.date;res.time=W.time;
   }
   W.result=res;save();renderTyres();
@@ -370,6 +384,7 @@ function custRows(list){
 }
 var byTime=function(a,b){return (a.date+a.time).localeCompare(b.date+b.time)};
 function renderAdmin(){
+  var ac=$('#autoC');if(ac)ac.checked=!!S.auto;
   var nNew=S.bookings.filter(function(b){return b.status==='Ny'}).length;
   $('#tabs').innerHTML=TABS.map(function(t){return '<button role="tab" data-act="tab" data-v="'+t[0]+'" aria-selected="'+(A.tab===t[0])+'">'+t[1]+(t[0]==='bokningar'&&nNew?'<b>'+nNew+'</b>':'')+'</button>'}).join('');
   var h='',days=workdays(5),day0=days[0];
@@ -384,15 +399,35 @@ function renderAdmin(){
   }
   else if(A.tab==='idag'){
     var td=S.bookings.filter(function(b){return b.date===day0}).sort(byTime);
-    var wk=S.bookings.filter(function(b){return days.indexOf(b.date)>-1});
-    var openO=S.orders.filter(function(o){return o.status!=='Utlämnad'});
-    var max=Math.max.apply(null,days.map(function(d){return S.bookings.filter(function(b){return b.date===d}).length}))||1;
-    h='<h2 class="d">'+(day0===TODAY?'Idag, ':'Nästa öppna dag, ')+nice(day0)+'</h2>'+
-      '<div class="kpis"><div class="kpi"><b>'+td.length+'</b><span>bokningar '+(day0===TODAY?'idag':'den dagen')+'</span></div><div class="kpi'+(nNew?' hot':'')+'"><b>'+nNew+'</b><span>nya att bekräfta</span></div>'+
-      '<div class="kpi"><b>'+S.customers.length+'</b><span>kunder i registret</span></div><div class="kpi"><b>'+kr(openO.reduce(function(a,o){return a+o.total},0))+'</b><span>i öppna webbordrar</span></div></div>'+
-      '<div class="cols2"><div class="panel"><h3>Körschema</h3>'+(td.length?td.map(function(b){return bRow(b)}).join(''):'<p style="padding:16px;color:var(--smoke)">Inga bokningar. Nya dyker upp här så fort en kund bokar.</p>')+'</div>'+
-      '<div class="panel"><h3>Beläggning kommande dagar</h3><div class="bars">'+days.map(function(d,i){var n=S.bookings.filter(function(b){return b.date===d}).length;return '<div><b>'+n+'</b><i style="height:'+Math.round(n/max*100)+'%;animation-delay:'+(i*60)+'ms"></i>'+WD[D(d).getDay()]+'</div>'}).join('')+'</div>'+
-      '<p class="small" style="padding:0 16px 16px;color:var(--smoke)">'+wk.length+' bokningar de närmaste fem öppna dagarna.</p></div></div>';
+    var newB=S.bookings.filter(function(b){return b.status==='Ny'}).sort(byTime);
+    var fitO=S.orders.filter(function(o){return o.status==='Väntar på montering'}).length;
+    var low=Object.keys(S.stock).filter(function(k){return S.stock[k]<4}).length;
+    var hotelLow=S.customers.filter(function(c){return c.hotel&&+c.hotel.depth<4}).length;
+    var open=420,close=closeHour(day0)*60,cap=2*(close-open),booked=td.reduce(function(a,b){return a+b.mins},0),occ=Math.round(booked/cap*100);
+    var est=td.reduce(function(a,b){return a+(svc(b.svc).price||0)},0);
+    var perH={};td.forEach(function(b){for(var m=toMin(b.time);m<toMin(b.time)+b.mins;m+=60){var h2=Math.floor(m/60);perH[h2]=(perH[h2]||0)+1}});
+    var bh=Object.keys(perH).sort(function(a,b){return perH[b]-perH[a]})[0];
+    var hr=new Date().getHours(),greet=hr<10?'God morgon':hr<17?'Hej':'God kväll',isT=day0===TODAY,dayW=isT?'Idag':'På '+WDL[D(day0).getDay()];
+    var L=[];
+    L.push(['',dayW+' har ni '+td.length+' '+(td.length===1?'bokning':'bokningar')+(td.length?', den första klockan '+td[0].time+'.':'.')]);
+    L.push(newB.length?['hot',newB.length+' '+(newB.length===1?'webbokning väntar':'webbokningar väntar')+' på att ni bekräftar.']:['ok','Alla webbokningar är bekräftade.']);
+    L.push(['','Lyftarna är bokade till '+occ+' procent'+(bh?', mest tryck runt klockan '+bh+'.':'.')]);
+    if(fitO)L.push(['hot',fitO+' '+(fitO===1?'webborder ska':'webbordrar ska')+' monteras.']);
+    if(low)L.push(['',low+' däck i lagret har färre än fyra kvar.']);
+    if(hotelLow)L.push(['',hotelLow+' kunder i däckhotellet har under 4 mm mönster. Bra läge att erbjuda nya däck.']);
+    // lift lanes: give each booking the first lift that is free
+    var lanes=[[],[]],ends=[0,0];td.forEach(function(b){var s0=toMin(b.time),li=ends[0]<=s0?0:ends[1]<=s0?1:(ends[0]<=ends[1]?0:1);lanes[li].push(b);ends[li]=s0+b.mins});
+    var span=close-open,hrs=(close-open)/60,pct=function(m){return ((m-open)/span*100).toFixed(2)+'%'},nm=new Date().getHours()*60+new Date().getMinutes();
+    var tl='<div class="tlg"><div class="tlh" style="grid-template-columns:repeat('+hrs+',1fr)">'+Array.apply(null,{length:hrs}).map(function(_,k){return '<span>'+pad(7+k)+'</span>'}).join('')+'</div>'+
+      lanes.map(function(ln,k){return '<div class="lane"><span>Lyft '+(k+1)+'</span><div class="track" style="--h:'+hrs+'">'+ln.map(function(b,n){var c=cust(b.custId)||{name:''};return '<button class="blk '+b.status+'" data-act="cust" data-id="'+b.custId+'" style="left:'+pct(toMin(b.time))+';width:calc('+(b.mins/span*100).toFixed(2)+'% - 4px);animation-delay:'+(n*50)+'ms" title="'+esc(c.name)+'"><b>'+b.time+' '+esc(b.reg)+'</b><span>'+svc(b.svc).name+'</span></button>'}).join('')+'</div></div>'}).join('')+
+      (isT&&nm>open&&nm<close?'<i class="nowl" style="left:calc(62px + (100% - 62px) * '+((nm-open)/span).toFixed(4)+')"></i>':'')+'</div>';
+    var days=workdays(5),max=Math.max.apply(null,days.map(function(d){return S.bookings.filter(function(b){return b.date===d}).length}))||1;
+    h='<section class="brief"><p class="when">'+WDL[now.getDay()].replace(/^./,function(c){return c.toUpperCase()})+' '+now.getDate()+' '+MON[now.getMonth()]+'</p><h2 class="d">'+greet+', Nicklas</h2><ul>'+L.map(function(l){return '<li class="'+l[0]+'">'+l[1]+'</li>'}).join('')+'</ul><p class="note">Sammanfattningen räknas fram ur bokningarna, ordrarna och lagret just nu.</p></section>'+
+      '<div class="kpis"><div class="kpi"><b>'+td.length+'</b><span>bokningar '+(isT?'idag':'den dagen')+'</span></div><div class="kpi'+(newB.length?' hot':'')+'"><b>'+newB.length+'</b><span>att bekräfta</span></div>'+
+      '<div class="kpi"><b>'+occ+' %</b><span>beläggning på lyftarna</span></div><div class="kpi"><b>'+kr(est)+'</b><span>beräknat, exempelpriser</span></div></div>'+
+      '<div class="panel tl"><h3>Lyftarna '+(isT?'idag':nice(day0))+'</h3><div class="tlw">'+(td.length?tl:'<p style="color:var(--smoke)">Inga bokningar. Nya hamnar här så fort en kund bokar.</p>')+'</div></div>'+
+      '<div class="cols2"><div class="panel"><h3>Att bekräfta</h3>'+(newB.length?newB.map(function(b){return bRow(b,true)}).join(''):'<p style="padding:16px;color:var(--smoke)">Inget att bekräfta just nu.</p>')+'</div>'+
+      '<div class="panel"><h3>Kommande dagar</h3><div class="bars">'+days.map(function(d,i){var n=S.bookings.filter(function(b){return b.date===d}).length;return '<div><b>'+n+'</b><i style="height:'+Math.round(n/max*100)+'%;animation-delay:'+(i*60)+'ms"></i>'+WD[D(d).getDay()]+'</div>'}).join('')+'</div></div></div>';
   }
   else if(A.tab==='bokningar'){
     var all=S.bookings.filter(function(b){return b.date>=TODAY}).sort(function(a,b){return (b.status==='Ny')-(a.status==='Ny')||byTime(a,b)});
@@ -429,6 +464,67 @@ function setViewNow(v){
   if(v==='admin'){PRODUCTS.forEach(function(p){stockOf(p.id+'|205/55 R16');stockOf(p.id+'|'+dimStr())});renderAdmin()}
   window.scrollTo(0,0);if(v==='site'&&wheel){measure();storyUI()}
 }
+/* ---------- car configurator ---------- */
+var car=null,CF={cat:'dack',rim:'sport',paint:'obsidian',leds:true,glow:true,view:'front',hwy:false,tip:null};
+var RIMN={sport:'Sport',classic:'Classic',black:'Black Edition'},PAINTN={obsidian:'Obsidian Black',silver:'Nordic Silver',white:'Ice White',midnight:'Midnight Blue'},PAINTC={obsidian:'#0b0b0d',silver:'#9ea4ab',white:'#e6eaee',midnight:'#0d1a3c'};
+var SEAN={sommar:'Sommardäck',friktion:'Friktionsdäck',dubb:'Dubbdäck'},VIEWN={front:'3/4 fram',side:'Sidoprofil',close:'Närbild fälg'};
+var CATS=[['dack','Däck'],['falg','Fälg'],['lack','Lack'],['ljus','Ljus'],['vy','Vy']];
+function renderCfg(flash){
+  $('#ccats').innerHTML=CATS.map(function(c){return '<button role="tab" data-act="ccat" data-v="'+c[0]+'" aria-selected="'+(CF.cat===c[0])+'">'+c[1]+'</button>'}).join('');
+  var o=[],P=function(k,v,l,sel,sw){o.push('<button data-act="copt" data-k="'+k+'" data-v="'+v+'" aria-pressed="'+sel+'">'+(sw?'<i style="--c:'+sw+'"></i>':'')+l+'</button>')};
+  if(CF.cat==='dack')TYPES.forEach(function(t){P('season',t[0],SEAN[t[0]],SEASON===t[0])});
+  if(CF.cat==='falg')['sport','classic','black'].forEach(function(r){P('rim',r,RIMN[r],CF.rim===r)});
+  if(CF.cat==='lack')['obsidian','silver','white','midnight'].forEach(function(p){P('paint',p,PAINTN[p],CF.paint===p,PAINTC[p])});
+  if(CF.cat==='ljus'){P('leds',CF.leds?'0':'1','LED-ljus '+(CF.leds?'på':'av'),CF.leds);P('glow',CF.glow?'0':'1','Underglow '+(CF.glow?'på':'av'),CF.glow)}
+  if(CF.cat==='vy')['front','side','close'].forEach(function(v){P('view',v,VIEWN[v],CF.view===v)});
+  $('#copts').innerHTML=o.join('');
+  $('#csel').innerHTML='Valt<b'+(flash?' class="flash"':'')+'>'+RIMN[CF.rim]+', '+SEAN[SEASON]+'</b>';
+}
+window.renderCfg=renderCfg;
+function cfgPick(k,v){
+  var keepCat=true;
+  if(k==='season'){setSeason(v);return}
+  if(k==='rim'){CF.rim=v;if(car)car.setRim(v)}
+  if(k==='paint'){CF.paint=v;if(car)car.setPaint(v)}
+  if(k==='leds'){CF.leds=v==='1';if(car)car.setLights(CF.leds)}
+  if(k==='glow'){CF.glow=v==='1';if(car)car.setGlow(CF.glow)}
+  if(k==='view'){CF.view=v;closeTip();if(car)car.view(v)}
+  if(keepCat){var sc=$('#copts').scrollLeft;renderCfg(k==='rim');$('#copts').scrollLeft=sc}
+}
+var TIPS={wheel:['Hjul och balansering','Vi monterar, balanserar och gör hjulinställning här på Brynäs. Däckhotell finns från 895 kr per säsong (exempelpris).','montering','Boka montering'],
+  brake:['Bromsar','Vi byter skivor och belägg och säger vad det kostar innan vi börjar.','verkstad','Boka verkstadstid']};
+function openTip(v,el){
+  if(CF.tip===v){closeTip();return}
+  CF.tip=v;var t=TIPS[v];$('#ctip').innerHTML='<b>'+t[0]+'</b><p>'+t[1]+'</p><button class="btn sm" data-act="book" data-svc="'+t[2]+'"><span>'+t[3]+'</span></button>';
+  $('#ctip').classList.add('on');[].forEach.call(document.querySelectorAll('.cpin'),function(p){p.setAttribute('aria-expanded',p.dataset.v===v)});
+}
+function closeTip(){CF.tip=null;var t=$('#ctip');if(t)t.classList.remove('on');[].forEach.call(document.querySelectorAll('.cpin'),function(p){p.setAttribute('aria-expanded','false')})}
+(function(){
+  var sec=$('#bygg'),stage=$('#cstage'),pins=[].slice.call(document.querySelectorAll('.cpin')),tip=$('#ctip'),km=$('#kmh'),lastKm=-1,started=false;
+  function prog(){var r=sec.getBoundingClientRect(),vh=window.innerHeight,dm=document.querySelector('.demo').offsetHeight;
+    return {q:clamp(1-(r.top-dm)/(vh-dm)),p:clamp(-(r.top-dm)/Math.max(1,r.height-(vh-dm))),r:r}}
+  function extra(){var g=prog();return {az:(1-smooth(g.q))*1.1+g.p*.9,dim:smooth((g.p-.82)/.18)}}
+  function onFrame(){
+    var k=Math.round(car.kmh());if(k!==lastKm){km.textContent=k;lastKm=k}
+    var sr=stage.getBoundingClientRect();
+    pins.forEach(function(p){var pt=car.project(p.dataset.v),show=pt&&pt.ok&&!CF.hwy&&CF.view!=='side'&&pt.y<$('.cdock',stage).offsetTop-8&&pt.y>$('.ctop',stage).offsetHeight+8;
+      p.classList.toggle('on',!!show);if(pt)p.style.transform='translate3d('+pt.x.toFixed(1)+'px,'+pt.y.toFixed(1)+'px,0)';
+      if(CF.tip===p.dataset.v){if(!show&&!CF.hwy){}else if(!show){closeTip()}else{var tw=tip.offsetWidth,th=tip.offsetHeight,x=Math.max(12,Math.min(sr.width-tw-12,pt.x-tw*.5)),y=pt.y-th-26;if(y<64)y=pt.y+30;tip.style.transform='translate3d('+x.toFixed(0)+'px,'+y.toFixed(0)+'px,0)'}}});
+  }
+  function start(){
+    if(started)return;started=true;
+    try{car=window.NKCar&&window.NKCar.mount($('#car'),{season:SEASON,extra:extra,onFrame:onFrame})}catch(e){car=null}
+    if(!car){sec.style.display='none';return}
+    var pad=function(){var sr=stage.getBoundingClientRect(),t=$('.ctop',stage).getBoundingClientRect(),d=$('.cdock',stage).getBoundingClientRect();car.setPad(Math.max(0,t.bottom-sr.top),Math.max(0,sr.bottom-d.top))};
+    pad();window.addEventListener('resize',pad);if(document.fonts)document.fonts.ready.then(pad);
+  }
+  onScrollFns.push(function(){var g=prog();stage.style.setProperty('--dk',smooth((g.p-.86)/.14).toFixed(3));
+    document.documentElement.classList.toggle('incfg',g.q>.6&&g.p<.97&&!$('#site').hidden)});
+  if('IntersectionObserver' in window)new IntersectionObserver(function(e){if(e[0].isIntersecting)start()},{rootMargin:'700px 0px'}).observe(sec);else start();
+  renderCfg();
+})();
+$('#quote').addEventListener('submit',function(e){e.preventDefault();var r=$('#qReg').value.trim();openFlow('quick',{svc:QV,reg:r})});
+
 var tT;function toast(m){var t=$('#toast');t.textContent=m;t.classList.remove('on');void t.offsetWidth;t.classList.add('on');clearTimeout(tT);tT=setTimeout(function(){t.classList.remove('on')},2600)}
 function cyc(arr,v,d){var i=arr.indexOf(v)+d;return arr[(i+arr.length)%arr.length]}
 document.addEventListener('click',function(e){
@@ -437,6 +533,12 @@ document.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]');if(!el)return;var a=el.dataset.act,d=el.dataset;
   if(a==='book'){closeCard();openFlow('booking',{svc:d.svc})}
   else if(a==='season')setSeason(d.v);
+  else if(a==='qpick'){QV=d.v;renderCards()}
+  else if(a==='cfgbook'){closeTip();openFlow('quick',{svc:'nyadack',cfg:{rim:RIMN[CF.rim],tyre:SEAN[SEASON]}})}
+  else if(a==='ccat'){CF.cat=d.v;renderCfg()}
+  else if(a==='copt')cfgPick(d.k,d.v);
+  else if(a==='hwy'){CF.hwy=!CF.hwy;el.setAttribute('aria-pressed',CF.hwy);closeTip();if(car)car.setHighway(CF.hwy)}
+  else if(a==='cpin')openTip(d.v,el);
   else if(a==='hot')openHot(d.v);
   else if(a==='cardx')closeCard();
   else if(a==='scanbook'){closeCard();openFlow('booking',{svc:'skifte',reg:REG})}
@@ -472,10 +574,11 @@ document.addEventListener('input',function(e){
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&W)closeFlow()});
 if('IntersectionObserver' in window){new IntersectionObserver(function(en,ob){if(en[0].isIntersecting){$('#skid').classList.add('in');ob.disconnect()}},{threshold:.6}).observe($('#skid'))}else $('#skid').classList.add('in');
 
-renderStatic();renderServices();renderSize();renderSeason();renderTyres();
+renderStatic();renderServices();renderCards();renderSize();renderSeason();renderTyres();
 setTimeout(function(){document.documentElement.classList.add('ready')},2400);
 var hpNow=895,hpRaf=0;
 document.addEventListener('change',function(e){
+  if(e.target.id==='autoC'){S.auto=e.target.checked;save();toast(S.auto?'Nya webbokningar bekräftas automatiskt':'Nya webbokningar väntar på er bekräftelse');return}
   if(!e.target.matches||!e.target.matches('#hotelOpts input'))return;
   var to=895+[].slice.call(document.querySelectorAll('#hotelOpts input[data-x]:checked')).reduce(function(a,i){return a+ +i.dataset.p},0),from=hpNow,t0=performance.now(),el=$('#hotelPrice');
   cancelAnimationFrame(hpRaf);(function run(n){var t=Math.min(1,(n-t0)/(RM?1:420)),k=1-Math.pow(1-t,3);hpNow=Math.round(from+(to-from)*k);el.textContent=kr(hpNow);if(t<1)hpRaf=requestAnimationFrame(run)})(t0);

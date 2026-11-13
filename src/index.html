@@ -89,22 +89,59 @@
     <div class="ticks" aria-hidden="true"><i></i><i></i><i></i></div>
   </div></section>
 
-  <section class="sec light sheetlike"><div class="wrap visit">
-    <div>
-      <p class="status" id="openNow"></p>
-      <h2 class="d" style="margin-top:10px">Punktering? Kom direkt.</h2>
-      <a class="bigtel d" href="tel:+4626180501">026-18 05 01</a>
+  <section class="cfg-sec" id="bygg">
+    <div class="cstage" id="cstage">
+      <canvas id="car" role="img" aria-label="En bil i 3D. Byt fälg, däck, lack och ljus. Dra för att snurra runt bilen."></canvas>
+      <div class="ctop wrap">
+        <h2 class="d">Prova på bilen</h2>
+        <button class="hwy" id="hwy" data-act="hwy" aria-pressed="false"><span class="spd"><b id="kmh">0</b> km/h</span><span class="lbl">Testa rull</span></button>
+      </div>
+      <div class="cpins" id="cpins">
+        <button class="cpin" data-act="cpin" data-v="wheel" aria-label="Om hjul och balansering"></button>
+        <button class="cpin" data-act="cpin" data-v="brake" aria-label="Om bromsar"></button>
+        <div class="ctip" id="ctip" role="status"></div>
+      </div>
+      <div class="cdock">
+        <div class="ccats" id="ccats"></div>
+        <div class="copts" id="copts"></div>
+        <div class="cbar"><p class="csel" id="csel"></p><button class="btn" data-act="cfgbook"><span>Boka tid / få offert</span></button></div>
+      </div>
     </div>
-    <dl>
-      <dt>Adress</dt><dd>Brynäsgatan 67, Gävle</dd>
-      <dt>Idag</dt><dd id="todayHours"></dd>
-      <dt>Mejl</dt><dd><a href="mailto:info@nkbilochdack.se">info@nkbilochdack.se</a></dd>
-    </dl>
+  </section>
+
+  <section class="sec light sheetlike" id="kontakt"><div class="wrap">
+    <div class="proof">
+      <span class="stars" aria-label="4,6 av 5"><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><i style="width:92%"><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg></i></span>
+      <span><b>4,6</b> på Google, 155 omdömen</span>
+      <span>Sedan 1993 på Brynäs</span>
+      <span>Drop-in vid punktering</span>
+    </div>
+    <div class="visit">
+      <div>
+        <p class="status" id="openNow"></p>
+        <h2 class="d" style="margin-top:10px">Punktering? Kom direkt.</h2>
+        <a class="bigtel d" href="tel:+4626180501">026-18 05 01</a>
+        <dl>
+          <dt>Adress</dt><dd>Brynäsgatan 67, Gävle</dd>
+          <dt>Idag</dt><dd id="todayHours"></dd>
+          <dt>Mejl</dt><dd><a href="mailto:info@nkbilochdack.se">info@nkbilochdack.se</a></dd>
+        </dl>
+      </div>
+      <form class="quote" id="quote" novalidate>
+        <h3 class="d">Snabboffert</h3>
+        <p>Regnummer och vad det gäller. Du väljer tid i nästa steg.</p>
+        <label class="regplate"><span>S</span><input id="qReg" maxlength="7" placeholder="ABC 123" aria-label="Regnummer" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+        <div class="qsvc" id="qsvc"></div>
+        <button class="btn" type="submit"><span>Få offert och tid</span></button>
+      </form>
+    </div>
   </div></section>
 
   <section class="sec dark" id="tjanster"><div class="tape" aria-hidden="true"><div class="tape-in d" id="tapeIn"></div></div><div class="wrap">
     <h2 class="d">Det här gör vi</h2>
-    <p class="lede">Personbilar och transportbilar. Tryck på en tjänst för att se vad som ingår och boka.</p>
+    <p class="lede">Personbilar och transportbilar. Fast pris där det går, annars får du priset innan vi börjar.</p>
+    <div class="scards" id="scards"></div>
+    <h3 class="d allsvc">Alla tjänster</h3>
     <div class="svc" id="services"></div>
     <p class="fine">Lyktpolering är NK:s eget pris. Övriga priser är exempel i demon.</p>
   </div></section>
@@ -171,7 +208,7 @@
 <div id="admin" hidden>
   <div class="abar"><div class="wrap">
     <div><span class="plate">NK</span><span class="who">Verkstaden</span></div>
-    <button class="btn sm line" data-act="reset"><span>Återställ demo</span></button>
+    <div class="aacts"><label class="auto"><input type="checkbox" id="autoC"><span class="sw2" aria-hidden="true"></span>Autobekräfta</label><button class="btn sm line" data-act="reset"><span>Återställ</span></button></div>
   </div></div>
   <div class="tabs" role="tablist" id="tabs"></div>
   <div class="amain"><div class="wrap" id="amain"></div></div>

@@ -12,11 +12,11 @@ const FINISH = {
   red: { color: 0xb30a20, metalness: 0.78, roughness: 0.3, clearcoat: 1 },
   orange: { color: 0xff5412, metalness: 0.45, roughness: 0.36, clearcoat: 1 }
 };
-const STUD_ROWS = [0.1, 0.27, 0.73, 0.9], STUD_M = 42;
-const studU = (row, i) => ((i + row * 0.37) % STUD_M) / STUD_M;
+export const STUD_ROWS = [0.1, 0.27, 0.73, 0.9], STUD_M = 42;
+export const studU = (row, i) => ((i + row * 0.37) % STUD_M) / STUD_M;
 
 /* Tread and sidewall, drawn per season. Returns a height map and a colour map. */
-function tyreTextures(size, text, season, K) {
+export function tyreTextures(size, text, season, K) {
   const W = Math.round(2048 * K), H = Math.round(512 * K);
   const h = document.createElement('canvas'); h.width = W; h.height = H;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -78,14 +78,14 @@ function tyreTextures(size, text, season, K) {
   return { bump, map };
 }
 
-function softDisc(size, stops) {
+export function softDisc(size, stops) {
   const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d');
   const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
   stops.forEach(s => gr.addColorStop(s[0], s[1])); g.fillStyle = gr; g.fillRect(0, 0, size, size);
   return new CanvasTexture(c);
 }
 
-function concrete() {
+export function concrete() {
   const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
   g.fillStyle = '#5a5a5a'; g.fillRect(0, 0, 512, 512);
   for (let i = 0; i < 2600; i++) { const v = 60 + Math.random() * 90 | 0; g.fillStyle = `rgba(${v},${v},${v},${0.18 + Math.random() * 0.3})`; const s = 1 + Math.random() * 5; g.fillRect(Math.random() * 512, Math.random() * 512, s, s * (0.4 + Math.random())); }
@@ -94,15 +94,17 @@ function concrete() {
   const t = new CanvasTexture(c); t.wrapS = t.wrapT = RepeatWrapping; t.repeat.set(3, 3); t.anisotropy = 8; return t;
 }
 
+export const tyreProfile = t => {
+  if (t < 0.3) { const s = t / 0.3; return [0.665 + 0.3 * Math.pow(s, 0.85), -(0.285 + 0.06 * Math.sin(Math.PI * Math.pow(s, 0.8)))]; }
+  if (t <= 0.7) { const u = (t - 0.3) / 0.4; return [0.965 + 0.035 * Math.pow(Math.sin(Math.PI * u), 0.3), -0.285 + 0.57 * u]; }
+  const s = (1 - t) / 0.3; return [0.665 + 0.3 * Math.pow(s, 0.85), 0.285 + 0.06 * Math.sin(Math.PI * Math.pow(s, 0.8))];
+};
+const prof = tyreProfile;
+
 function buildWheel(size, text, season, K) {
   const spin = new Group(), rimG = new Group(), brakeG = new Group(), tyreG = new Group();
   spin.name = 'spin'; tyreG.name = 'tyreG'; spin.add(tyreG); spin.add(rimG); spin.add(brakeG);
   const pts = [], n = 60;
-  const prof = t => {
-    if (t < 0.3) { const s = t / 0.3; return [0.665 + 0.3 * Math.pow(s, 0.85), -(0.285 + 0.06 * Math.sin(Math.PI * Math.pow(s, 0.8)))]; }
-    if (t <= 0.7) { const u = (t - 0.3) / 0.4; return [0.965 + 0.035 * Math.pow(Math.sin(Math.PI * u), 0.3), -0.285 + 0.57 * u]; }
-    const s = (1 - t) / 0.3; return [0.665 + 0.3 * Math.pow(s, 0.85), 0.285 + 0.06 * Math.sin(Math.PI * Math.pow(s, 0.8))];
-  };
   for (let i = 0; i <= n; i++) { const p = prof(i / n); pts.push(new Vector2(p[0], p[1])); }
   const tex = tyreTextures(size, text, season, K);
   const tyreMat = new MeshStandardMaterial({ color: 0xffffff, map: tex.map, bumpMap: tex.bump, bumpScale: 1.6, roughness: 0.86, metalness: 0 });
@@ -154,7 +156,7 @@ function buildWheel(size, text, season, K) {
   return { spin, fixed, rimMat, tyreG, tyreMat, rimG, brakeG, cal, studs, studBase };
 }
 
-function studioEnv(renderer) {
+export function studioEnv(renderer) {
   const sc = new Scene();
   const box = (w, h, d, x, y, z, r, g, b) => { const m = new MeshBasicMaterial({ side: DoubleSide }); m.color.setRGB(r, g, b); m.toneMapped = false; const o = new Mesh(new BoxGeometry(w, h, d), m); o.position.set(x, y, z); sc.add(o); };
   sc.add(new Mesh(new SphereGeometry(30, 16, 12), new MeshBasicMaterial({ color: 0x0a0a0b, side: BackSide })));
