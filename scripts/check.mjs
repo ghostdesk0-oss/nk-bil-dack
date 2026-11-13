@@ -51,6 +51,15 @@ for (const f of ['src/app.js', 'src/car/car.js', 'src/wheel/wheel.js', 'scripts/
   try { execFileSync(process.execPath, ['--check', path.join(root, f)], { stdio: 'pipe' }); }
   catch (e) { fail('syntax', `${f}: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
 }
+// L-009 Browser tests wait for state, not for time, before asserting.
+{
+  const lines = read('tests/smoke.py').split('\n');
+  lines.forEach((l, i) => {
+    if (!/wait_for_timeout/.test(l)) return;
+    const next = lines.slice(i + 1).find((x) => x.trim());
+    if (next && /^\s*assert\b/.test(next)) fail('L-009', `smoke.py line ${i + 1}: fixed wait before an assert; use wait_for_selector/wait_for_function`);
+  });
+}
 // L-008 Size budget: the whole site ships as one file and must stay quick on 4G.
 if (!quick && fs.existsSync(path.join(root, 'dist/index.html'))) {
   const kb = fs.statSync(path.join(root, 'dist/index.html')).size / 1024;

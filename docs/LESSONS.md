@@ -15,7 +15,7 @@ not on the canvas element itself. Absolutely-positioned canvases like `#car` can
 **Happened:** the smoke test clicked the dashboard 600 ms after a view transition. On the slow
 test renderer the transition had not finished, the test failed, and the bug looked real.
 **Rule:** wait for a selector or a condition (`wait_for_selector`, `wait_for_function`), not a timeout.
-**Enforced:** manual. Review `tests/smoke.py` changes for bare `wait_for_timeout` before assertions.
+**Enforced:** `check.mjs` L-009 blocks a bare `wait_for_timeout` directly before an `assert` in `tests/smoke.py`.
 
 ## L-008 One file has a size budget
 **Happened:** fonts, three.js and two scenes are inlined; the file passed 1 MB.

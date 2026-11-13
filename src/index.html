@@ -25,6 +25,7 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
   <symbol id="i-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
   <symbol id="i-dn" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-snd" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="w" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
 </defs></svg>
 
 <div class="demo"><div class="wrap">
@@ -51,6 +52,7 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
   <header class="top"><div class="wrap">
     <a class="plate" href="#">NK Bil & Däck</a>
     <nav class="nav" aria-label="Huvudmeny"><a href="#tjanster">Tjänster</a><a href="#dack">Köp däck</a><a href="#hotell">Däckhotell</a><a href="#hitta">Hitta hit</a></nav>
+    <button class="snd" data-act="snd" aria-pressed="false" aria-label="Ljud på eller av"><svg class="i"><use href="#i-snd"/></svg></button>
     <button class="cart" data-act="cart" aria-label="Öppna varukorgen"><svg class="i"><use href="#i-cart"/></svg><b id="cartn">0</b></button>
   </div></header>
 
@@ -209,7 +211,7 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
     </div>
   </div></section>
 
-  <footer class="foot"><div class="wrap">Konceptdemo för NK Bil & Däck AB. Kunder, bokningar, lager och de flesta priser är påhittade exempel.</div><div class="mega d" aria-hidden="true">NK Bil & Däck</div></footer>
+  <footer class="foot"><div class="wrap">Konceptdemo för NK Bil & Däck AB. Kunder, bokningar, lager och de flesta priser är påhittade exempel.</div><button class="mega d" data-act="vadm" aria-label="Växla mellan kundsidan och Verkstaden">NK Bil & Däck</button></footer>
 
   <div class="bar">
     <a class="btn line" href="tel:+4626180501" aria-label="Ring 026-18 05 01"><span><svg class="i"><use href="#i-tel"/></svg>026-18 05 01</span></a>
@@ -219,7 +221,7 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
 
 <div id="admin" hidden>
   <div class="abar"><div class="wrap">
-    <div><span class="plate">NK</span><span class="who">Verkstaden</span></div>
+    <div><button class="plate" data-act="vadm" aria-label="Tillbaka till kundsidan">NK</button><span class="who">Verkstaden</span></div>
     <div class="aacts"><label class="auto"><input type="checkbox" id="autoC"><span class="sw2" aria-hidden="true"></span>Autobekräfta</label><button class="btn sm line" data-act="reset"><span>Återställ</span></button></div>
   </div></div>
   <div class="tabs" role="tablist" id="tabs"></div>

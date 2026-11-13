@@ -27,11 +27,19 @@ async def main():
         await pg.wait_for_timeout(3500)
         await pg.screenshot(path=SHOTS / "01-hero.png")
 
+        # hero hotspots never clip outside the viewport on phone size
+        clip = await js("""(function(){var ok=[];document.querySelectorAll('.hs.on').forEach(function(e){var b=e.getBoundingClientRect();
+          ok.push(b.left>=-2&&b.top>=-2&&b.right<=innerWidth+2&&b.bottom<=innerHeight+2)});return ok})()""")
+        assert clip and all(clip), "hero hotspot clipped"
+
         # reg-nummer scan -> result card -> booking with the plate prefilled
         await pg.fill("#heroReg", "abc123")
         await js("document.querySelector('#plateform button').click()")
         await pg.wait_for_selector("#gcard.on", timeout=60000)
         await pg.screenshot(path=SHOTS / "02-scan.png")
+        clip = await js("""(function(){var ok=[];document.querySelectorAll('.hs.on,.badge.on').forEach(function(e){var b=e.getBoundingClientRect();
+          ok.push(b.left>=-2&&b.top>=-2&&b.right<=innerWidth+2&&b.bottom<=innerHeight+2)});return ok})()""")
+        assert clip and all(clip), "hero callout clipped after scan"
         await js("document.querySelector('[data-act=scanbook]').click()")
         await pg.wait_for_selector(".slot:not([disabled])")
         await js("document.querySelector('.slot:not([disabled])').click()")
@@ -61,6 +69,32 @@ async def main():
             await js(f"document.querySelector('[data-act=tab][data-v={tab}]').click()")
             await pg.wait_for_timeout(350)
         await pg.screenshot(path=SHOTS / "04-workshop.png")
+
+        # owner pitch: KPI strip, NY BOKNING pill, and the SMS completion action
+        await js("document.querySelector('[data-act=tab][data-v=idag]').click()")
+        await pg.wait_for_timeout(350)
+        kpi = await js("document.querySelector('.kpis').textContent")
+        assert "Lediga tider idag" in kpi and "Däckhotell" in kpi and "Akuta drop-in" in kpi
+        await js("document.querySelector('[data-act=tab][data-v=bokningar]').click()")
+        await pg.wait_for_timeout(350)
+        assert "NY BOKNING" in await js("document.getElementById('amain').textContent")
+        assert "Lyft" in await js("document.getElementById('amain').textContent")
+        await pg.wait_for_selector("[data-act=sms]")
+        await js("document.querySelector('[data-act=sms]').click()")
+        await pg.wait_for_function("document.getElementById('toast').textContent.includes('SMS skickat')")
+        assert "Klar för hämtning" in await js("document.getElementById('amain').textContent")
+
+        # discreet view toggles: Shift+V on desktop, footer wordmark on mobile
+        await pg.keyboard.press("Shift+V")
+        await pg.wait_for_function("!document.getElementById('site').hidden")
+        await pg.keyboard.press("Shift+V")
+        await pg.wait_for_function("!document.getElementById('admin').hidden")
+        await pg.keyboard.press("Shift+V")
+        await pg.wait_for_function("!document.getElementById('site').hidden")
+        await js("document.querySelector('.mega').click()")
+        await pg.wait_for_function("!document.getElementById('admin').hidden")
+        await pg.keyboard.press("Shift+V")
+        await pg.wait_for_function("!document.getElementById('site').hidden")
 
         # season switch drives the shop, then checkout with fitting
         await pg.click("[data-view=site]")
@@ -111,8 +145,8 @@ async def main():
 
         # tyre-hotel builder
         await js("document.querySelector('#hotelOpts input[data-x=wash]').click()")
-        await pg.wait_for_timeout(700)
-        assert "1 045" in (await js("document.getElementById('hotelPrice').textContent")).replace(" ", " ")
+        # L-009: the price animates on rAF; wait for the value, not a fixed delay
+        await pg.wait_for_function("document.getElementById('hotelPrice').textContent.replace(/\\s/g,' ').includes('1 045')", timeout=15000)
 
         await b.close()
         errs = [e for e in errs if "smoke-test-error" not in e]

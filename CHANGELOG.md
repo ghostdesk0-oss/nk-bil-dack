@@ -4,6 +4,10 @@ What changed, in words Nicklas would understand where it is visible to him.
 Newest first. Add to Unreleased as you go; cut a version when the demo link is republished.
 
 ## Unreleased
+- Verkstaden stays reachable after the demo strip is dismissed: Shift+V on desktop, the footer wordmark (or the NK plate in Verkstaden) on touch.
+- Verkstaden owner pitch: KPI strip (dagens bokningar, lediga tider, däckhotell-beläggning, akuta drop-in), booking rows with Swedish reg-plate badge, lift and hotel-shelf assignment, "Markera klar & skicka SMS" with toast confirmation, and a NY BOKNING pill on fresh web bookings.
+- Optional sound (off until toggled in the header): synthesized wheel-gun burst on rim swaps and an rpm-following hum while the burnout is held.
+- Hero callout dots and badges are clamped inside the viewport on phone screens.
 - The demo strip can be dismissed with an × (stays hidden for the session) for clean fullscreen demos.
 - Camera preset buttons (3/4 Front, Sidoprofil, Närbild Hjul) always visible in Prova på bilen.
 - Burnout release spins down with real inertia, the brake disc glows hot and cools, and the camera trembles with the revs.
