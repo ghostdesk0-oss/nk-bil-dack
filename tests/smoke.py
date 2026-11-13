@@ -72,12 +72,11 @@ async def main():
 
         # owner pitch: KPI strip, NY BOKNING pill, and the SMS completion action
         await js("document.querySelector('[data-act=tab][data-v=idag]').click()")
-        await pg.wait_for_timeout(350)
+        await pg.wait_for_function("!!document.querySelector('.kpis') && document.querySelector('.kpis').textContent.includes('Lediga tider idag')")
         kpi = await js("document.querySelector('.kpis').textContent")
-        assert "Lediga tider idag" in kpi and "Däckhotell" in kpi and "Akuta drop-in" in kpi
+        assert "Däckhotell" in kpi and "Akuta drop-in" in kpi
         await js("document.querySelector('[data-act=tab][data-v=bokningar]').click()")
-        await pg.wait_for_timeout(350)
-        assert "NY BOKNING" in await js("document.getElementById('amain').textContent")
+        await pg.wait_for_function("document.getElementById('amain').textContent.includes('NY BOKNING')")
         assert "Lyft" in await js("document.getElementById('amain').textContent")
         await pg.wait_for_selector("[data-act=sms]")
         await js("document.querySelector('[data-act=sms]').click()")
@@ -101,8 +100,7 @@ async def main():
         await pg.wait_for_function("!document.getElementById('site').hidden", timeout=60000)
         await pg.wait_for_timeout(500)
         await js("document.querySelector('#dack [data-act=season][data-v=dubb]').click()")
-        await pg.wait_for_timeout(400)
-        assert await js("document.querySelectorAll('#tyres .tcard').length") >= 1
+        await pg.wait_for_function("document.querySelectorAll('#tyres .tcard').length >= 1")
         await js("document.querySelector('[data-act=add]').click()")
         assert await js("document.getElementById('cartn').textContent") == "4"
         await js("document.getElementById('barMain').click()")
@@ -116,8 +114,7 @@ async def main():
         await pg.click("[data-act=next]")
         await pg.wait_for_selector("[data-act=toadmin]")
         await pg.click("#sheet .x")
-        await pg.wait_for_timeout(400)
-        assert await js("document.documentElement.style.overflow") == ""
+        await pg.wait_for_function("document.documentElement.style.overflow === ''")
 
         # car configurator: swap rim and paint, book from the action bar
         await js("window.scrollTo({top: document.getElementById('bygg').offsetTop + innerHeight*0.6, behavior:'instant'})")
