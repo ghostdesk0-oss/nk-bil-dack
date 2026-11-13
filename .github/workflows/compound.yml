@@ -1,0 +1,40 @@
+name: Compound
+# Weekly: turn the week's closed issues, merged PRs and CI failures into lessons and checks.
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+  actions: read
+  id-token: write
+jobs:
+  compound:
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - if: env.HAS_KEY != 'true'
+        run: echo "ANTHROPIC_API_KEY is not set; skipping."
+      - if: env.HAS_KEY == 'true'
+        uses: actions/checkout@v4
+      - if: env.HAS_KEY == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You maintain the learning loop for ${{ github.repository }}.
+            Look at the last 7 days: closed issues (gh issue list --state closed),
+            merged PRs and their review comments (gh pr list --state merged), and failed
+            workflow runs (gh run list --status failure).
+            For each bug, correction or failure:
+              - If docs/LESSONS.md already has it and it happened again, enforce it with a rule
+                in scripts/check.mjs or a step in tests/smoke.py.
+              - Otherwise add a lesson with the next ID.
+            Prune AGENTS.md: keep it under 120 lines, remove lines that no longer earn their place.
+            Run npm ci && npm run build && npm run check.
+            If anything changed, open a PR titled "Compound: lessons from the week" that lists
+            each lesson and why. If nothing was learned, do nothing.
+          claude_args: --max-turns 40 --allowedTools "Bash(gh *),Bash(npm *),Bash(node *),Bash(git *),Edit,Write,Read"

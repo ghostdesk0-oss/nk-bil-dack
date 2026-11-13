@@ -369,7 +369,10 @@ function commit(){
 
 /* ---------- workshop ---------- */
 var A={tab:'idag',q:'',cust:null};
-var TABS=[['idag','Idag'],['bokningar','Bokningar'],['kunder','Kunder'],['hotell','Däckhotell'],['ordrar','Ordrar'],['lager','Lager']];
+var TABS=[['idag','Idag'],['bokningar','Bokningar'],['kunder','Kunder'],['hotell','Däckhotell'],['ordrar','Ordrar'],['lager','Lager'],['logg','Logg']];
+// Where feedback and error reports go. Change here if the repository moves.
+var REPO='https://github.com/ghostdesk0-oss/nk-bil-dack.';
+function issueUrl(tpl,title,fields){var q='template='+tpl+'&title='+encodeURIComponent(title);for(var k in fields)q+='&'+k+'='+encodeURIComponent(fields[k]);return REPO+'/issues/new?'+q}
 var NEXT={'Ny':'Bekräfta','Bekräftad':'Starta jobbet','Pågår':'Markera som klar'};
 var NEXTS={'Ny':'Bekräftad','Bekräftad':'Pågår','Pågår':'Klar'};
 function bRow(b,showDate){
@@ -451,6 +454,18 @@ function renderAdmin(){
     var keys=Object.keys(S.stock).sort();
     h='<h2 class="d">Lager</h2><p style="color:var(--smoke);margin-top:6px">Saldot räknas ner automatiskt när någon handlar på webben.</p><div class="panel" style="margin-top:18px">'+
       keys.map(function(k){var p=prod(k.split('|')[0]),d=k.split('|')[1],n=S.stock[k];return '<div class="lrow"><div><b>'+p.brand+'</b> '+p.model+'<div class="sub">'+d+', '+kr(price(p,d))+'</div></div><div class="r"><span class="qty"><button data-act="stock" data-k="'+k+'" data-d="-1" aria-label="Minska saldo">−</button><span style="min-width:26px;text-align:center;'+(n<5?'color:var(--red-deep)':'')+'">'+n+'</span><button data-act="stock" data-k="'+k+'" data-d="1" aria-label="Öka saldo">+</button></span></div></div>'}).join('')+'</div>';
+  }
+  if(A.tab==='logg'&&!A.cust){
+    var errs=window.NKErr?NKErr.list():[];
+    h='<h2 class="d">Logg</h2><p style="color:var(--smoke);margin-top:6px">Fel som händer på den här enheten sparas här. Ett tryck gör dem till ett ärende som vi rättar och lär oss av.</p>'+
+      '<div class="cols2" style="margin-top:18px"><div class="panel"><h3>Fel på den här enheten</h3>'+
+      (errs.length?errs.map(function(e){var body=e.m+'\n'+e.s+'\nVersion '+e.v+', skärm '+e.w+'\n'+navigator.userAgent+'\n'+e.t;
+        return '<div class="lrow"><div><b>'+esc(e.m)+'</b><div class="sub">'+esc(e.s)+'<br>'+esc(e.t.replace('T',' ').slice(0,16))+', version '+esc(e.v)+'</div></div><div class="r"><a class="btn sm ink" href="'+esc(issueUrl('bug.yml','Fel: '+e.m.slice(0,70),{log:body,device:navigator.userAgent.slice(0,120)}))+'" target="_blank" rel="noopener"><span>Skapa ärende</span></a></div></div>'}).join('')+
+        '<div class="lrow"><div></div><div class="r"><button class="linkb" data-act="clearerr">Rensa loggen</button></div></div>'
+      :'<p style="padding:16px;color:var(--smoke)">Inga fel loggade på den här enheten.</p>')+'</div>'+
+      '<div class="panel"><h3>Tyck till</h3><div style="padding:16px;display:grid;gap:12px"><p style="color:var(--smoke)">Något som borde vara annorlunda? Skriv det som du skulle säga det. Det hamnar som ett ärende i projektet.</p>'+
+      '<a class="btn" href="'+esc(REPO+'/issues/new?template=feedback.yml')+'" target="_blank" rel="noopener"><span>Skicka feedback</span></a>'+
+      '<p class="small" style="color:var(--smoke)">Kräver inloggning på GitHub med tillgång till projektet.</p></div></div></div>';
   }
   $('#amain').innerHTML=h;
 }
@@ -564,6 +579,7 @@ document.addEventListener('click',function(e){
   else if(a==='custback'){A.cust=null;A.tab='kunder';vt(renderAdmin)}
   else if(a==='odone'){var o=S.orders.filter(function(x){return x.id===d.id})[0];o.status='Utlämnad';save();renderAdmin();toast(o.id+' är utlämnad')}
   else if(a==='stock'){S.stock[d.k]=Math.max(0,S.stock[d.k]+ +d.d);save();renderAdmin()}
+  else if(a==='clearerr'){if(window.NKErr)NKErr.clear();renderAdmin();toast('Loggen är rensad')}
   else if(a==='reset'){try{localStorage.removeItem(KEY)}catch(x){}seed();A={tab:'idag',q:'',cust:null};setView('admin');renderTyres();toast('Demon är återställd')}
 });
 var txT;

@@ -16,7 +16,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: actions/upload-artifact@v4
+      - run: npm run check
+      - uses: actions/setup-python@v5
         with:
-          name: site
-          path: dist/index.html
+          python-version: '3.12'
+      - run: pip install playwright && playwright install --with-deps chromium
+      - run: python3 tests/smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: site-and-screenshots
+          path: |
+            dist/index.html
+            tests/shots/

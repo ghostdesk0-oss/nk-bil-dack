@@ -1,0 +1,17 @@
+name: Bug
+description: Something is broken or looks wrong
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes: { label: What happened, description: What you saw, and what you expected instead }
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes: { label: How to see it, placeholder: "1. Open the site on iPhone\n2. Scroll to ...\n3. Tap ..." }
+  - type: input
+    id: device
+    attributes: { label: Device and browser, placeholder: iPhone 15, Safari }
+  - type: textarea
+    id: log
+    attributes: { label: Error report, description: Paste from Verkstaden → Logg if there is one, render: text }

@@ -50,7 +50,14 @@ async def main():
         await js("document.querySelector('[data-act=tab][data-v=idag]').click()")
         await pg.wait_for_selector("#amain .brief", timeout=60000)
         assert await js("document.querySelectorAll('.blk').length") >= 1
-        for tab in ["idag", "kunder", "hotell", "ordrar", "lager", "bokningar"]:
+        # error log: an uncaught error shows up in Verkstaden -> Logg with an issue link
+        await js("setTimeout(function(){throw new Error('smoke-test-error')},0)")
+        await pg.wait_for_timeout(200)
+        for tab in ["idag", "kunder", "hotell", "ordrar", "lager", "logg", "bokningar"]:
+            if tab == "logg":
+                await js("document.querySelector('[data-act=tab][data-v=logg]').click()")
+                await pg.wait_for_selector("#amain a[href*='issues/new?template=bug.yml']", timeout=60000)
+                continue
             await js(f"document.querySelector('[data-act=tab][data-v={tab}]').click()")
             await pg.wait_for_timeout(350)
         await pg.screenshot(path=SHOTS / "04-workshop.png")
@@ -102,6 +109,7 @@ async def main():
         assert "1 045" in (await js("document.getElementById('hotelPrice').textContent")).replace(" ", " ")
 
         await b.close()
+        errs = [e for e in errs if "smoke-test-error" not in e]
         if errs:
             print("PAGE ERRORS:", *errs, sep="\n  ")
             sys.exit(1)

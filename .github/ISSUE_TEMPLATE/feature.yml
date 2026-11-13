@@ -1,0 +1,14 @@
+name: Feature
+description: Something new to build
+labels: [feature]
+body:
+  - type: textarea
+    id: who
+    attributes: { label: Who is it for and what can they do afterwards }
+    validations: { required: true }
+  - type: dropdown
+    id: phase
+    attributes: { label: Roadmap phase, options: ["1 Design and selling", "2 Backend and booking", "3 Security and consent", "4 SEO and ads", "5 AI"] }
+  - type: textarea
+    id: done
+    attributes: { label: How we know it works }

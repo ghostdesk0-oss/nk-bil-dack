@@ -1,0 +1,14 @@
+name: Feedback från verkstaden
+description: Vad Nicklas eller en kund tycker
+labels: [feedback]
+body:
+  - type: textarea
+    id: what
+    attributes: { label: Vad gäller det?, description: Skriv som du skulle säga det }
+    validations: { required: true }
+  - type: dropdown
+    id: where
+    attributes: { label: Var?, options: [Kundsidan, Bokningen, Verkstaden, Annat] }
+  - type: dropdown
+    id: urgency
+    attributes: { label: Hur viktigt?, options: [Stoppar mig, Irriterar, Bra att ha] }

@@ -12,7 +12,8 @@ däckshop och en verkstadsvy. Allt byggs till **en enda HTML-fil** utan server.
 npm install
 npm run dev      # bygger om vid ändring, http://localhost:5173
 npm run build    # skriver dist/index.html
-npm test         # röktest i headless Chromium (kräver Python + Playwright)
+npm run check    # projektets regler, snabbt
+npm test         # bygg, regler och röktest i headless Chromium (kräver Python + Playwright)
 ```
 
 Röktestet behöver `pip install playwright && playwright install chromium`.
@@ -29,6 +30,10 @@ Röktestet behöver `pip install playwright && playwright install chromium`.
 | `scripts/build.mjs` | Bäddar in typsnitt, CSS, 3D-bundle och app-script i `dist/index.html` |
 | `scripts/dev.mjs` | Lokal förhandsvisning med ombyggnad vid ändring |
 | `tests/smoke.py` | Går igenom regskanning, bokning, köp och verkstadsvyn |
+| `AGENTS.md` | Regler för AI-agenter (Claude, Codex, Cursor). `CLAUDE.md` importerar den |
+| `docs/AI-WORKFLOW.md` | Hur projektet lär sig av fel, feedback och granskningar |
+| `docs/LESSONS.md` | Misstag som redan gjorts, och hur de stoppas |
+| `docs/decisions/` | Varför saker är som de är |
 | `docs/PROJECT.md` | Kunden, problemet, målet och öppna frågor |
 | `docs/ROADMAP.md` | Faserna från demo till skarp drift |
 

@@ -1,0 +1,33 @@
+name: Claude review
+# Reviews every PR against this repo's own lessons, and proposes new ones.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - if: env.HAS_KEY != 'true'
+        run: echo "ANTHROPIC_API_KEY is not set; skipping."
+      - if: env.HAS_KEY == 'true'
+        uses: actions/checkout@v4
+      - if: env.HAS_KEY == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+            Read AGENTS.md and docs/LESSONS.md first.
+            1. Report bugs, broken flows on a 390 px wide phone, and anything that repeats a lesson
+               (name the lesson ID). Skip style nits.
+            2. Check the PR adds a CHANGELOG line and, if it fixed a bug, a lesson.
+            3. If you spot a mistake pattern that is not in LESSONS.md yet, propose the entry.
+            Post one review comment. Keep it short.
+          claude_args: --max-turns 20

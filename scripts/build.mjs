@@ -22,7 +22,9 @@ export async function buildSite() {
   })).outputFiles[0].text;
 
   const inline = (code) => code.replace(/<\/script/g, '<\\/script');
+  const version = JSON.parse(fs.readFileSync(r('package.json'), 'utf8')).version;
   const html = fs.readFileSync(r('src/index.html'), 'utf8')
+    .replace(/__VERSION__/g, version)
     .replace('/*FONTS*/', () => fonts)
     .replace('/*STYLES*/', () => fs.readFileSync(r('src/styles.css'), 'utf8'))
     .replace('/*WHEEL*/', () => inline(wheel))
