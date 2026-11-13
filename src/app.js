@@ -735,5 +735,3 @@ function smokeLoop(){
   els.forEach(function(e){e.innerHTML='<span class="rvi">'+e.innerHTML+'</span>';e.classList.add('rv');io.observe(e)});
 })();
 })();
-
-import './verkstad-os.js';
