@@ -4,6 +4,13 @@ Mistakes already made in this repo, so no one makes them twice. Newest first.
 Format: what happened, the rule, and how it is enforced (`check.mjs` rule ID, test, or "manual").
 When a manual lesson bites a second time, turn it into a check.
 
+## L-010 IntersectionObserver is useless on a fixed canvas
+**Happened:** pausing the hero wheel with an IntersectionObserver on its canvas never fired,
+because `#wheel` is `position:fixed` and always intersects the viewport.
+**Rule:** gate the render loop on the sections the fixed canvas belongs to (hero + story),
+not on the canvas element itself. Absolutely-positioned canvases like `#car` can be observed directly.
+**Enforced:** manual.
+
 ## L-009 Wait for state, not for time, in browser tests
 **Happened:** the smoke test clicked the dashboard 600 ms after a view transition. On the slow
 test renderer the transition had not finished, the test failed, and the bug looked real.

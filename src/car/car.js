@@ -130,8 +130,8 @@ export function mount(canvas, opts = {}) {
     const t = new CanvasTexture(dc); t.colorSpace = SRGBColorSpace; M.discFace = new MeshStandardMaterial({ color: 0xffffff, map: t, metalness: 1, roughness: 0.34 }); }
   function retexTyre() {
     const t = tyreTextures('225/40 R18', 'NK BIL & DÄCK', st.season, 1);
-    if (M.tyre.map) { M.tyre.map.dispose(); M.tyre.bumpMap.dispose(); }
-    M.tyre.map = t.map; M.tyre.bumpMap = t.bump; M.tyre.needsUpdate = true;
+    for (const k of ['map', 'bumpMap', 'roughnessMap']) { if (M.tyre[k]) M.tyre[k].dispose(); }
+    M.tyre.map = t.map; M.tyre.bumpMap = t.bump; M.tyre.roughnessMap = t.rough; M.tyre.needsUpdate = true;
   }
   retexTyre();
 
@@ -215,6 +215,9 @@ export function mount(canvas, opts = {}) {
   const floor = new Mesh(new PlaneGeometry(26, 26), floorMat); floor.rotation.x = -Math.PI / 2; floor.renderOrder = 1; stage.add(floor);
   const shadow = new Mesh(new PlaneGeometry(5.4, 2.6), new MeshBasicMaterial({ map: softDisc(128, [[0, 'rgba(0,0,0,.95)'], [0.55, 'rgba(0,0,0,.6)'], [1, 'rgba(0,0,0,0)']]), transparent: true, depthWrite: false }));
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.004; shadow.scale.set(1, 1.15, 1); shadow.renderOrder = 2; stage.add(shadow);
+  // soft radial contact shadow beneath each tyre
+  const tyreShadow = new MeshBasicMaterial({ map: softDisc(128, [[0, 'rgba(0,0,0,.92)'], [0.55, 'rgba(0,0,0,.5)'], [1, 'rgba(0,0,0,0)']]), transparent: true, depthWrite: false });
+  for (const [ax, az] of AXLES) { const s = new Mesh(new PlaneGeometry(1.06, 0.8), tyreShadow); s.rotation.x = -Math.PI / 2; s.position.set(ax, 0.003, az * 0.98); s.renderOrder = 2; stage.add(s); }
   const glowMat = new MeshBasicMaterial({ map: softDisc(128, [[0, 'rgba(255,30,50,1)'], [0.45, 'rgba(255,20,40,.45)'], [1, 'rgba(255,20,40,0)']]), transparent: true, depthWrite: false, blending: AdditiveBlending, opacity: 0.9 });
   const glow = new Mesh(new PlaneGeometry(6.2, 3.2), glowMat); glow.rotation.x = -Math.PI / 2; glow.position.y = 0.006; glow.renderOrder = 3; stage.add(glow);
   const beamMat = new MeshBasicMaterial({ map: softDisc(128, [[0, 'rgba(235,245,255,.9)'], [0.5, 'rgba(235,245,255,.25)'], [1, 'rgba(235,245,255,0)']]), transparent: true, depthWrite: false, blending: AdditiveBlending, opacity: 0.55 });
@@ -241,6 +244,8 @@ export function mount(canvas, opts = {}) {
   const key = new DirectionalLight(0xffffff, 1.1); key.position.set(-3, 6, 5); scene.add(key);
   const kick = new PointLight(0xff2238, 60, 18); kick.position.set(-4, 1.2, -3); scene.add(kick);
   const mood = new PointLight(0xffa24a, 70, 20); mood.position.set(3.5, 2.6, 3.5); scene.add(mood);
+  // cool rear rim light: peels the dark silhouette off the dark studio, Polestar-style
+  const rim = new PointLight(0x9fc8ff, 55, 22); rim.position.set(2.4, 2.6, -4.6); scene.add(rim);
   const WARM = new Color(0xffa040), ICE = new Color(0x86cdff), FLOOR_DRY = new Color(0x151113), FLOOR_FROST = new Color(0x26303a), tmp = new Color();
 
   /* ---------- state ---------- */
@@ -293,7 +298,7 @@ export function mount(canvas, opts = {}) {
   canvas.addEventListener('wheel', e => { if (!e.ctrlKey && Math.abs(e.deltaY) < 40 && !e.altKey) return; e.preventDefault(); O.zoom = Math.max(0.45, Math.min(1.6, O.zoom * (1 + e.deltaY * 0.0015))); }, { passive: false });
 
   let visible = true;
-  new IntersectionObserver(e => { visible = e[0].isIntersecting; }, { rootMargin: '120px' }).observe(canvas);
+  new IntersectionObserver(e => { visible = e[0].isIntersecting; }, { rootMargin: '150px 0px' }).observe(canvas);
 
   const m4 = new Matrix4(), v3 = new Vector3(), sc = new Vector3(), q4 = new Quaternion();
   const backOut = t => { const c1 = 2.2, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
@@ -339,8 +344,8 @@ export function mount(canvas, opts = {}) {
     // studs
     if (S.stud !== S.studT * 2 || S.studDirty) { S.stud += Math.sign(S.studT * 2 - S.stud) * dt * 1.6; if (Math.abs(S.stud - S.studT * 2) < 0.03) S.stud = S.studT * 2; S.studDirty = false; writeStuds(); }
 
-    // suspension: damped spring on the body
-    S.bv += (-90 * S.bounce - 7.5 * S.bv) * dt; S.bounce += S.bv * dt;
+    // suspension: damped spring on the body (stiffness 180, damping 16)
+    S.bv += (-180 * S.bounce - 16 * S.bv) * dt; S.bounce += S.bv * dt;
     const rumble = sp > 0.3 && !reduce ? Math.sin(clock * 47) * 0.0025 * sp : 0;
     for (const c of both) { c.body.position.y = S.bounce + rumble; c.body.rotation.z = S.bv * 0.004; for (const w of c.wheels) w.spin.rotation.z = S.ang; }
 

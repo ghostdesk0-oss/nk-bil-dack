@@ -92,6 +92,7 @@ function seed(){
 function save(){try{localStorage.setItem(KEY,JSON.stringify({d:TODAY,S:S}))}catch(e){}}
 function init(){try{var j=JSON.parse(localStorage.getItem(KEY));if(j&&j.d===TODAY&&j.S){S=j.S;return}}catch(e){}seed()}
 init();
+try{if(sessionStorage.getItem('nk-demox'))document.querySelector('.demo').classList.add('off')}catch(e){}
 var cust=function(id){return S.customers.filter(function(c){return c.id===id})[0]};
 
 /* ---------- 3D wheel ---------- */
@@ -176,6 +177,12 @@ function startWheel(){
   try{wheel=window.NKWheel&&window.NKWheel.mount($('#wheel'),{pose:pose,season:SEASON})}catch(e){wheel=null}
   if(!wheel){document.documentElement.classList.add('nogl');return}
   wheel.bindDrag($('#dragHero'));wheel.bindDrag($('#dragStory'));
+  // pause the wheel's render loop when neither the hero nor the pinned story is near the viewport
+  if('IntersectionObserver' in window&&wheel.setVisible){
+    var cvis={hero:true,story:true};
+    var cio=new IntersectionObserver(function(es){es.forEach(function(en){cvis[en.target.id==='story'?'story':'hero']=en.isIntersecting});if(wheel)wheel.setVisible(cvis.hero||cvis.story)},{rootMargin:'150px 0px'});
+    cio.observe(document.querySelector('.hero'));cio.observe($('#story'));
+  }
   var dh=$('#dragHero'),revOff=function(){revving=false;wheel.rev(false)};
   dh.addEventListener('pointerdown',function(){revving=true;wheel.rev(true);smokeLoop()});dh.addEventListener('pointerup',revOff);dh.addEventListener('pointercancel',revOff);dh.addEventListener('pointerleave',revOff);
   ['dragHero','dragStory'].forEach(function(id){$('#'+id).addEventListener('pointerdown',function(){$('#hint').classList.add('gone')},{once:true})});
@@ -494,6 +501,7 @@ function renderCfg(flash){
   if(CF.cat==='vy')['front','side','close'].forEach(function(v){P('view',v,VIEWN[v],CF.view===v)});
   $('#copts').innerHTML=o.join('');
   $('#csel').innerHTML='Valt<b'+(flash?' class="flash"':'')+'>'+RIMN[CF.rim]+', '+SEAN[SEASON]+'</b>';
+  [].forEach.call(document.querySelectorAll('.ccam button'),function(b){b.setAttribute('aria-pressed',b.dataset.v===CF.view)});
 }
 window.renderCfg=renderCfg;
 function cfgPick(k,v){
@@ -546,7 +554,8 @@ document.addEventListener('click',function(e){
   var v=e.target.closest('[data-view]');if(v){setView(v.dataset.view);return}
   if(e.target.id==='scrim'){closeFlow();return}
   var el=e.target.closest('[data-act]');if(!el)return;var a=el.dataset.act,d=el.dataset;
-  if(a==='book'){closeCard();openFlow('booking',{svc:d.svc})}
+  if(a==='demox'){document.querySelector('.demo').classList.add('off');try{sessionStorage.setItem('nk-demox','1')}catch(x){}measure();storyUI()}
+  else if(a==='book'){closeCard();openFlow('booking',{svc:d.svc})}
   else if(a==='season')setSeason(d.v);
   else if(a==='qpick'){QV=d.v;renderCards()}
   else if(a==='cfgbook'){closeTip();openFlow('quick',{svc:'nyadack',cfg:{rim:RIMN[CF.rim],tyre:SEAN[SEASON]}})}

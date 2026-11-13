@@ -33,6 +33,7 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
     <button data-view="site" aria-pressed="true">Kundsidan</button>
     <button data-view="admin" aria-pressed="false">Verkstaden</button>
   </div>
+  <button class="dx" data-act="demox" aria-label="Dölj demonotisen"><svg class="i"><use href="#i-x"/></svg></button>
 </div></div>
 
 <div id="site">
@@ -107,10 +108,15 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
         <button class="cpin" data-act="cpin" data-v="brake" aria-label="Om bromsar"></button>
         <div class="ctip" id="ctip" role="status"></div>
       </div>
+      <div class="ccam" role="group" aria-label="Kameravinklar">
+        <button data-act="copt" data-k="view" data-v="front" aria-pressed="true">3/4 Front</button>
+        <button data-act="copt" data-k="view" data-v="side" aria-pressed="false">Sidoprofil</button>
+        <button data-act="copt" data-k="view" data-v="close" aria-pressed="false">Närbild Hjul</button>
+      </div>
       <div class="cdock">
         <div class="ccats" id="ccats"></div>
         <div class="copts" id="copts"></div>
-        <div class="cbar"><p class="csel" id="csel"></p><button class="btn" data-act="cfgbook"><span>Boka tid / få offert</span></button></div>
+        <div class="cbar"><p class="csel" id="csel"></p><button class="btn" data-act="cfgbook"><span>Boka tid med detta val</span></button></div>
       </div>
     </div>
   </section>

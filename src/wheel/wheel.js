@@ -63,19 +63,36 @@ export function tyreTextures(size, text, season, K) {
     ctx.lineWidth = 2 * K; ctx.strokeStyle = ctx === a ? '#5a5a5a' : '#0c0c0c';
     for (const y of [t0 - 16 * K, t0 - 24 * K, t1 + 16 * K, t1 + 24 * K, 18 * K, H - 18 * K]) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
   }
+  // roughness map: white rubber, slightly glossier letters so the text reads as molded in
+  const r = document.createElement('canvas'); r.width = W; r.height = H;
+  const rc = r.getContext('2d'); rc.fillStyle = '#ffffff'; rc.fillRect(0, 0, W, H);
+  // letters follow a gentle circular arc, like lettering molded around the sidewall
   const letter = (txt, u, font, hCol, cCol) => {
-    for (const [ctx, col] of [[a, hCol], [b, cCol]]) {
-      ctx.save(); ctx.translate(u * W, t0 * 0.5); ctx.rotate(Math.PI); ctx.scale(0.8 * K, 1.05 * K);
-      ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = col; ctx.fillText(txt, 0, 0, 2048 * 0.44); ctx.restore();
-    }
+    const chars = [...txt]; if (!chars.length) return;
+    a.save(); a.font = font;
+    let ws = chars.map(ch => a.measureText(ch).width);
+    a.restore();
+    const fit = Math.min(1, (2048 * 0.44) / ws.reduce((x, y) => x + y, 0));
+    ws = ws.map(w => w * fit * 0.8 * K);
+    const R = H * 1.15, total = ws.reduce((x, y) => x + y, 0) / R;
+    let ang = -total / 2;
+    const cx = u * W, cy = t0 * 0.5;
+    chars.forEach((ch, i) => {
+      const mid = ang + ws[i] / R / 2; ang += ws[i] / R;
+      const px = cx + Math.sin(mid) * R, py = cy - R * (1 - Math.cos(mid));
+      for (const [ctx, col] of [[a, hCol], [b, cCol], [rc, '#c9c9c9']]) {
+        ctx.save(); ctx.translate(px, py); ctx.rotate(Math.PI + mid); ctx.scale(0.8 * K * fit, 1.05 * K * fit);
+        ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = col; ctx.fillText(ch, 0, 0); ctx.restore();
+      }
+    });
   };
   const big = 'italic 900 64px Archivo, Arial Black, sans-serif', small = '700 40px Archivo, Arial, sans-serif';
   letter(text, 0.25, big, '#ffffff', '#ecebe7'); letter(text, 0.75, big, '#ffffff', '#ecebe7');
   for (const u of [0, 0.5, 1]) letter(size, u, small, '#f0f0f0', '#2c2c2c');
-  const bump = new CanvasTexture(h), map = new CanvasTexture(c);
+  const bump = new CanvasTexture(h), map = new CanvasTexture(c), rough = new CanvasTexture(r);
   map.colorSpace = SRGBColorSpace;
-  for (const t of [bump, map]) { t.wrapS = RepeatWrapping; t.anisotropy = 8; }
-  return { bump, map };
+  for (const t of [bump, map, rough]) { t.wrapS = RepeatWrapping; t.anisotropy = 8; }
+  return { bump, map, rough };
 }
 
 export function softDisc(size, stops) {
@@ -107,7 +124,7 @@ function buildWheel(size, text, season, K) {
   const pts = [], n = 60;
   for (let i = 0; i <= n; i++) { const p = prof(i / n); pts.push(new Vector2(p[0], p[1])); }
   const tex = tyreTextures(size, text, season, K);
-  const tyreMat = new MeshStandardMaterial({ color: 0xffffff, map: tex.map, bumpMap: tex.bump, bumpScale: 1.6, roughness: 0.86, metalness: 0 });
+  const tyreMat = new MeshStandardMaterial({ color: 0xffffff, map: tex.map, bumpMap: tex.bump, bumpScale: 1.6, roughnessMap: tex.rough, roughness: 0.86, metalness: 0 });
   const tyre = new Mesh(new LatheGeometry(pts, 160), tyreMat); tyre.rotation.x = Math.PI / 2; tyreG.add(tyre);
 
   // studs: one instanced mesh, popped out with a wave around the tread
@@ -153,7 +170,7 @@ function buildWheel(size, text, season, K) {
   const cs = new Shape(); cs.absarc(0, 0, 0.56, -0.15, 0.75, false); cs.absarc(0, 0, 0.33, 0.75, -0.15, true); cs.closePath();
   const cal = new Mesh(new ExtrudeGeometry(cs, { depth: 0.1, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 2, curveSegments: 16 }), new MeshPhysicalMaterial({ color: 0xe4102a, metalness: 0.3, roughness: 0.4, clearcoat: 1, clearcoatRoughness: 0.1 }));
   cal.position.z = 0.03; fixed.add(cal);
-  return { spin, fixed, rimMat, tyreG, tyreMat, rimG, brakeG, cal, studs, studBase };
+  return { spin, fixed, rimMat, tyreG, tyreMat, rimG, brakeG, cal, studs, studBase, discMats: [discMat, discFace] };
 }
 
 export function studioEnv(renderer) {
@@ -186,6 +203,7 @@ export function mount(canvas, opts = {}) {
 
   let size = opts.size || '205/55 R16 91V', text = opts.text || 'NK BIL & DÄCK', season = opts.season || 'friktion';
   const w = buildWheel(size, text, season, K);
+  for (const m of w.discMats) { m.emissive.set(0xff3800); m.emissiveIntensity = 0; }
   const axle = new Group(), yawG = new Group(), tiltG = new Group(), root = new Group();
   axle.add(w.spin); axle.add(w.fixed); yawG.add(axle); tiltG.add(yawG); root.add(tiltG); scene.add(root);
   const calZ = w.cal.position.z;
@@ -222,7 +240,7 @@ export function mount(canvas, opts = {}) {
 
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches, pose = opts.pose;
   const C = { x: 0, y: 0, d: 0, yaw: -0.62, pitch: 0, e: 0, f: 1, temp: 0, snow: 0, floor: 1, cam: 0.15, init: false };
-  const S = { ang: 0, vel: 0, entry: reduce ? 0 : 1, t0: 0, user: 0, drag: null, rev: false, px: 0, py: 0, sx: 0, sy: 0, vx: 0, vy: 0,
+  const S = { ang: 0, vel: 0, entry: reduce ? 0 : 1, t0: 0, user: 0, drag: null, rev: false, heat: 0, px: 0, py: 0, sx: 0, sy: 0, vx: 0, vy: 0,
     from: new Color(FINISH.silver.color), to: new Color(FINISH.silver.color), mix: 1, fFrom: FINISH.silver, fTo: FINISH.silver,
     stud: season === 'dubb' ? 2 : 0, studT: season === 'dubb' ? 1 : 0, studDirty: true, scan: null };
   let vw = 1, vh = 1; const P = { x: 0, y: 0, d: 0 };
@@ -247,12 +265,12 @@ export function mount(canvas, opts = {}) {
   }
   writeStuds();
 
-  let prev = performance.now(), started = false, wasActive = true, slow = 0, count = 0, clock = 0;
+  let prev = performance.now(), started = false, wasActive = true, slow = 0, count = 0, clock = 0, extVis = true;
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - prev) / 1000); prev = now; clock += dt;
     const T = pose();
-    if (!T || !T.active || document.hidden) { if (wasActive) { renderer.clear(); wasActive = false; } return; }
+    if (!extVis || !T || !T.active || document.hidden) { if (wasActive) { renderer.clear(); wasActive = false; } return; }
     wasActive = true;
     if (!started) { started = true; S.t0 = now; }
     const k = C.init ? Math.min(1, dt * (T.snap || 6)) : 1; C.init = true;
@@ -262,8 +280,17 @@ export function mount(canvas, opts = {}) {
     if (S.entry > 0) { const p = Math.min(1, (now - S.t0) / 1700), ease = 1 - Math.pow(2, -9 * p), n = p < 1 ? 1 - ease : 0; S.ang += (S.entry - n) * 4.2; S.entry = n; ex = n * 4.2; }
     const scanning = S.scan && clock - S.scan.t < 1.9;
     if ((S.rev || scanning) && !reduce) S.vel += ((scanning ? 26 : 48) - S.vel) * Math.min(1, dt * (scanning ? 4 : 1.1));
-    else S.vel += ((reduce ? 0 : T.spin || 0) - S.vel) * Math.min(1, dt * 1.5);
+    else {
+      const tgt = reduce ? 0 : T.spin || 0;
+      // released from a burnout: spin down with exponential inertia instead of a linear pull
+      if (S.vel > tgt + 0.6) S.vel = Math.max(tgt, S.vel * Math.exp(-1.8 * dt));
+      else S.vel += (tgt - S.vel) * Math.min(1, dt * 1.5);
+    }
     S.ang += S.vel * dt;
+    // brake rotor heat: builds while the tyre is lit up, glows orange-red, cools gradually
+    if (!reduce && (S.rev || S.vel > 26)) S.heat = Math.min(1, S.heat + dt * 0.7);
+    S.heat *= Math.exp(-0.5 * dt);
+    for (const m of w.discMats) m.emissiveIntensity = S.heat * 1.8;
     if (!S.drag) S.user += (0 - S.user) * Math.min(1, dt * (T.e > 0.05 || T.lock ? 6 : 0.6));
     // cursor spring: slightly under-damped so the wheel settles with a little weight
     const stiff = 70, damp = 10;
@@ -278,7 +305,7 @@ export function mount(canvas, opts = {}) {
     if (S.stud !== S.studT * 2 || S.studDirty) { S.stud += Math.sign(S.studT * 2 - S.stud) * dt * 1.6; if (Math.abs(S.stud - S.studT * 2) < 0.03) S.stud = S.studT * 2; S.studDirty = false; writeStuds(); }
 
     const sc = (C.d * wpp) / 2, free = (1 - C.e) * (T.lock ? 0 : 1);
-    const shake = Math.max(0, Math.abs(S.vel) - 30) * 0.0009 * sc;
+    const shake = Math.max(0, Math.abs(S.vel) - 30) * 0.0009 * sc * (1 + S.heat * 0.8); // rpm-scaled micro shake
     root.position.set((C.x - vw / 2) * wpp + ex * sc + (Math.random() - 0.5) * shake, -(C.y - vh / 2) * wpp + (Math.random() - 0.5) * shake, 0);
     P.x = C.x + ex * sc / wpp; P.y = C.y; P.d = C.d;
     root.scale.setScalar(sc); root.rotation.x = C.cam + S.sy * 0.16 * free;
@@ -315,7 +342,7 @@ export function mount(canvas, opts = {}) {
   requestAnimationFrame(frame);
 
   const ANCH = { tread: new Vector3(-0.96, 0.28, 0.02), sidewall: new Vector3(0.05, 0.84, 0.34), rim: new Vector3(0.3, -0.3, 0.3) };
-  function retex() { const t = tyreTextures(size, text, season, K); w.tyreMat.map.dispose(); w.tyreMat.bumpMap.dispose(); w.tyreMat.map = t.map; w.tyreMat.bumpMap = t.bump; w.tyreMat.needsUpdate = true; }
+  function retex() { const t = tyreTextures(size, text, season, K); for (const k of ['map', 'bumpMap', 'roughnessMap']) { if (w.tyreMat[k]) w.tyreMat[k].dispose(); } w.tyreMat.map = t.map; w.tyreMat.bumpMap = t.bump; w.tyreMat.roughnessMap = t.rough; w.tyreMat.needsUpdate = true; }
   return {
     setFinish(name) { const f = FINISH[name]; if (!f) return; S.from.copy(w.rimMat.color); S.to.set(f.color); S.fFrom = { metalness: w.rimMat.metalness, roughness: w.rimMat.roughness, clearcoat: w.rimMat.clearcoat }; S.fTo = f; S.mix = 0; if (!reduce) S.vel += 8; },
     setText(t) { text = t || ' '; retex(); },
@@ -323,6 +350,7 @@ export function mount(canvas, opts = {}) {
     scan(cb) { S.scan = { t: clock, cb }; },
     project(name) { const a = ANCH[name]; if (!a) return null; V3.copy(a); yawG.localToWorld(V3); const z = V3.z; V3.project(cam); return { x: (V3.x * 0.5 + 0.5) * vw, y: (-V3.y * 0.5 + 0.5) * vh, z }; },
     kick(v) { if (!reduce) S.vel += v; }, rev(on) { S.rev = !!on; }, speed() { return S.vel; }, where() { return P; },
+    setVisible(v) { extVis = !!v; },
     bindDrag(el) {
       el.addEventListener('pointerdown', e => { S.drag = { x: e.clientX, u: S.user }; el.setPointerCapture(e.pointerId); el.classList.add('grabbing'); });
       el.addEventListener('pointermove', e => { if (!S.drag) return; S.user = Math.max(-1.3, Math.min(1.3, S.drag.u + (e.clientX - S.drag.x) * 0.008)); S.vel += (e.movementX || 0) * 0.012; });
