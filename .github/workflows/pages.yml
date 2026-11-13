@@ -1,6 +1,9 @@
 name: Deploy to GitHub Pages
-# Manual on purpose: enable Pages (Settings → Pages → Source: GitHub Actions) and run it from the Actions tab.
+# Deploys the demo on every push to main, after the build and tests pass.
+# One-time setup: Settings → Pages → Source: GitHub Actions.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,6 +26,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: npm run check
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

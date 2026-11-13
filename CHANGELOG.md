@@ -4,6 +4,7 @@ What changed, in words Nicklas would understand where it is visible to him.
 Newest first. Add to Unreleased as you go; cut a version when the demo link is republished.
 
 ## Unreleased
+- The demo deploys to GitHub Pages automatically on every push to main.
 - Error log and feedback links in Verkstaden (Logg tab), so problems become GitHub issues.
 - Project rules checked on every build; agent instructions, lessons and decision records.
 
