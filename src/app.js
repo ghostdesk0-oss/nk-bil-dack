@@ -371,7 +371,7 @@ function commit(){
 var A={tab:'idag',q:'',cust:null};
 var TABS=[['idag','Idag'],['bokningar','Bokningar'],['kunder','Kunder'],['hotell','Däckhotell'],['ordrar','Ordrar'],['lager','Lager'],['logg','Logg']];
 // Where feedback and error reports go. Change here if the repository moves.
-var REPO='https://github.com/ghostdesk0-oss/nk-bil-dack.';
+var REPO='https://github.com/ghostdesk0-oss/nk-bil-dack';
 function issueUrl(tpl,title,fields){var q='template='+tpl+'&title='+encodeURIComponent(title);for(var k in fields)q+='&'+k+'='+encodeURIComponent(fields[k]);return REPO+'/issues/new?'+q}
 var NEXT={'Ny':'Bekräfta','Bekräftad':'Starta jobbet','Pågår':'Markera som klar'};
 var NEXTS={'Ny':'Bekräftad','Bekräftad':'Pågår','Pågår':'Klar'};
