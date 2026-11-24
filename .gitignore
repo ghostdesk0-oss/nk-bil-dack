@@ -3,3 +3,6 @@ dist/
 .DS_Store
 *.log
 tests/shots/
+
+# design skills fetch their kit here
+.taste-skill/
