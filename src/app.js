@@ -254,15 +254,15 @@ function renderSite() { renderBoard(); renderTyres(); renderVisit(); }
 
 /* ---------- the booking sheet: book, cart, my bookings, move ---------- */
 let W = null, closeT = 0, lastFocus = null;
-const STEPS = { book: ['what', 'when', 'who', 'done'], order: ['cart', 'when', 'who', 'done'], mine: ['mine'], move: ['when', 'done'] };
-const TITLES = { what: 'Vad gäller det?', when: 'Välj tid', who: 'Dina uppgifter', done: 'Klart', cart: 'Varukorgen', mine: 'Mina bokningar' };
+const STEPS = { book: ['what', 'when', 'who', 'done'], order: ['cart', 'when', 'pay', 'who', 'done'], mine: ['mine'], move: ['when', 'done'] };
+const TITLES = { what: 'Vad gäller det?', when: 'Välj tid', who: 'Dina uppgifter', done: 'Klart', cart: 'Varukorgen', pay: 'Betalning', mine: 'Mina bokningar' };
 function openFlow(kind, o) {
   o = o || {}; clearTimeout(closeT);
   const m = me.get(), sc = $('#scrim');
   sc.classList.remove('out'); $('#sheet').innerHTML = '';
   const reg = o.reg || REG || m.reg || '';
   W = { kind, steps: STEPS[kind].slice(), i: 0, shown: -1, svc: o.svc || null, reg, date: o.date || null, time: o.time || null, extras: o.extras || [],
-    name: m.name || '', phone: o.phone || m.phone || '', email: m.email || '', note: '', fit: true, err: null, result: null, moveId: o.moveId || null, list: null, ask: null, busy: false, model: '' };
+    name: m.name || '', phone: o.phone || m.phone || '', email: m.email || '', note: '', fit: true, err: null, result: null, moveId: o.moveId || null, list: null, ask: null, busy: false, model: '', pay: 'plats' };
   if (kind === 'book' && W.svc) W.i = E.normReg(W.reg).ok ? (W.date && W.time && E.slotState(S, W.date, W.time, E.svc(W.svc).mins, NOW()) === 'free' ? 2 : 1) : 0;
   if (kind === 'mine' && W.phone) W.list = E.mine(S, W.phone, NOW());
   lastFocus = document.activeElement; document.documentElement.style.overflow = 'hidden'; document.body.classList.add('sheet-open');
@@ -310,6 +310,7 @@ function summary() {
   if (W.kind === 'order') {
     h += '<div><span>' + E.cartCount(S) + ' däck' + (W.fit ? ' med montering' : '') + '</span><span>' + kr(E.cartTotal(S) + (W.fit ? E.FIT : 0)) + '</span></div>';
     if (W.fit && W.date) h += '<div><span>Montering</span><span>' + E.when(W.date, W.time, now) + '</span></div>';
+    h += '<div><span>Betalning</span><span>' + E.payOf(W.pay).name + '</span></div>';
   } else {
     const s = E.svc(W.svc), tot = s.price ? s.price + W.extras.reduce((a, x) => a + x.p, 0) : null;
     h += '<div><span>' + s.name + '</span><span>' + E.pTxt(s) + '</span></div>' + W.extras.map((x) => '<div><span>' + esc(x.n) + '</span><span>+' + kr(x.p) + '</span></div>').join('');
@@ -325,14 +326,31 @@ function stepWho() {
     '<label class="field' + bad('phone') + '"><span>Mobilnummer <small>för sms om tiden</small></span><input id="fPhone" type="tel" value="' + esc(W.phone) + '" inputmode="tel" autocomplete="tel" placeholder="070-123 45 67" aria-describedby="err-phone">' + fieldErr('phone') + '</label>' +
     '<label class="field' + bad('email') + '"><span>Mejl <small>frivilligt, för bekräftelse</small></span><input id="fEmail" type="email" value="' + esc(W.email) + '" inputmode="email" autocomplete="email" aria-describedby="err-email">' + fieldErr('email') + '</label>' +
     '<label class="field"><span>Meddelande till verkstaden <small>frivilligt</small></span><textarea id="fNote" rows="2" maxlength="300">' + esc(W.note) + '</textarea></label>' +
-    '<p class="note">Du betalar på plats. Vi använder uppgifterna bara för din bokning.</p>';
+    '<p class="note">' + payNote() + ' Vi använder uppgifterna bara för din ' + (W.kind === 'order' ? 'beställning' : 'bokning') + '.</p>';
+}
+const orderTotal = () => E.cartTotal(S) + (W.fit ? E.FIT : 0);
+function payNote() {
+  if (W.kind !== 'order' || W.pay === 'plats') return 'Du betalar på plats.';
+  return W.pay === 'swish' ? 'När du trycker på Betala skickas en Swish-förfrågan till mobilnumret ovan.' : 'När du trycker på Betala öppnas kortbetalningen.';
+}
+function stepPay() {
+  return '<span class="flab">Hur vill du betala?</span><div class="opts2 pays" role="radiogroup" aria-label="Betalning">' + E.PAY.map((p) => '<button class="opt" role="radio" aria-checked="' + (W.pay === p.id) + '" data-act="paypick" data-v="' + p.id + '"><b>' + p.name + '</b><em>' + kr(orderTotal()) + '</em><span>' + p.sub + '</span></button>').join('') + '</div>' +
+    fieldErr('pay') +
+    '<p class="note">Förhandsvisning: Swish och kort är exempel. Ingen betalning görs och inga kortuppgifter efterfrågas. I skarp drift visas köpvillkor och ångerrätt här.</p>';
+}
+function payPanel(o) {
+  return '<div class="paybox" role="status"><b>' + (o.pay === 'swish' ? 'Öppna Swish och godkänn ' + kr(o.total) : 'Godkänn kortbetalningen på ' + kr(o.total)) + '</b>' +
+    '<p>' + (o.pay === 'swish' ? 'Betalningen går till NK Bil &amp; Däck. Förfrågan gäller i några minuter.' : 'Här öppnas bankens ruta där du godkänner med BankID eller kod.') + '</p>' +
+    '<p class="small">Förhandsvisning: ingen riktig ' + (o.pay === 'swish' ? 'Swish-betalning' : 'kortbetalning') + ' startas. Tryck på knappen för att se hur det blir.</p>' +
+    '<button class="btn" data-act="paynow" data-id="' + o.id + '"><span>Godkänn betalningen, exempel</span></button></div>';
 }
 function stepCart() {
   if (!S.cart.length) return '<p class="empty">Varukorgen är tom. Ställ in din dimension under Köp däck och lägg till de däck du vill ha.</p>';
   return S.cart.map((it, k) => { const p = E.prod(it.pid); return '<div class="citem"><div><b>' + esc(p.brand + ' ' + p.model) + '</b><div class="small">' + it.dim + ', ' + E.typeName(p.type).toLowerCase() + ', ' + kr(E.price(p, it.dim)) + ' st</div></div><div style="text-align:right;font-weight:800">' + kr(E.price(p, it.dim) * it.qty) + '</div>' +
     '<div class="qty"><button data-act="qty" data-k="' + k + '" data-d="-1" aria-label="Ett däck färre">−</button><span aria-live="polite">' + it.qty + ' st</span><button data-act="qty" data-k="' + k + '" data-d="1" aria-label="Ett däck till"' + (it.qty >= E.MAXQ ? ' disabled' : '') + '>+</button></div><button class="linkb rm" data-act="rm" data-k="' + k + '">Ta bort</button></div>'; }).join('') +
     '<label class="check"><input type="checkbox" id="fFit"' + (W.fit ? ' checked' : '') + '><span><b>Montering och balansering, ' + kr(E.FIT) + '</b><br><span class="small">Du väljer tid i nästa steg. Utan montering hämtar du däcken hos oss.</span></span></label>' +
-    '<div class="sum"><div class="tot"><span>Att betala i verkstaden</span><span>' + kr(E.cartTotal(S) + (W.fit ? E.FIT : 0)) + '</span></div></div>';
+    '<div class="sum"><div class="tot"><span>Att betala</span><span>' + kr(E.cartTotal(S) + (W.fit ? E.FIT : 0)) + '</span></div></div>' +
+    '<p class="note">Betala i verkstaden, eller direkt med Swish eller kort.</p>';
 }
 function stepMine() {
   let h = '<form id="mineForm" novalidate><label class="field' + bad('phone') + '"><span>Mobilnumret du bokade med</span><input id="fPhone" type="tel" value="' + esc(W.phone) + '" inputmode="tel" autocomplete="tel" placeholder="070-123 45 67">' + fieldErr('phone') + '</label><button class="btn ink" type="submit"><span>Visa mina bokningar</span></button></form>';
@@ -350,7 +368,8 @@ function stepMine() {
 function stepDone() {
   const r = W.result, now = NOW(), b = r.booking, first = (W.name || '').split(' ')[0];
   let h = '<div class="done"><div class="tick">' + ic('check') + '</div><h3 class="d">' + (W.kind === 'move' ? 'Tiden är flyttad' : 'Tack' + (first ? ' ' + esc(first) : '') + '!') + '</h3>';
-  if (r.order) h += '<div class="ref d">' + r.order.id + '</div><p>' + (b ? 'Vi monterar däcken <b>' + E.when(b.date, b.time, now) + '</b> på Brynäsgatan 67.' : 'Vi hör av oss när däcken är klara att hämta.') + (r.order.backorder ? ' Något av däcken beställs hem, det tar 2–3 dagar.' : '') + '</p>';
+  if (r.order && E.payOf(r.order.pay).online && !r.order.paid) return '<div class="done"><div class="ref d">' + r.order.id + '</div>' + payPanel(r.order) + '</div>';
+  if (r.order) h += '<div class="ref d">' + r.order.id + '</div>' + (E.payOf(r.order.pay).online ? '<p class="paid">' + ic('check') + E.payText(r.order) + ', ' + kr(r.order.total) + ' (exempel)</p>' : '') + '<p>' + (b ? 'Vi monterar däcken <b>' + E.when(b.date, b.time, now) + '</b> på Brynäsgatan 67.' : 'Vi hör av oss när däcken är klara att hämta.') + (r.order.backorder ? ' Något av däcken beställs hem, det tar 2–3 dagar.' : '') + '</p>';
   else h += '<div class="ref d">' + b.id + '</div><p>Välkommen <b>' + E.when(b.date, b.time, now) + '</b> till Brynäsgatan 67.' + (b.status === 'Ny' ? ' Verkstaden bekräftar tiden med ett sms.' : ' Tiden är bekräftad.') + '</p>';
   h += '<div class="dacts">' + (b ? '<button class="btn" data-act="ics"><span>' + ic('cal') + 'Lägg i kalendern</span></button>' : '') +
     '<a class="btn line" href="https://www.google.com/maps/search/?api=1&amp;query=NK+Bil+%26+D%C3%A4ck+Bryn%C3%A4sgatan+67+G%C3%A4vle" target="_blank" rel="noopener"><span>' + ic('pin') + 'Visa vägen</span></a>' +
@@ -365,14 +384,14 @@ function renderSheet(keepScroll) {
   const sub = st === 'done' || st === 'mine' ? '' : 'Steg ' + (pos + 1) + ' av ' + progSteps.length;
   if (!sh.firstChild) sh.innerHTML = '<header class="shead">' + hubSvg() + '<div><h3 class="d" id="sheetTitle" tabindex="-1"></h3><p id="sheetSub"></p></div><button class="x" data-act="close" aria-label="Stäng">' + ic('x') + '</button></header><div class="sbody"></div><div class="sfoot"></div>';
   const body = $('.sbody', sh), same = W.shown === W.i, first = W.shown < 0, dl = $('.days', body), keep = same || keepScroll ? [body.scrollTop, dl ? dl.scrollLeft : 0] : null;
-  $('#sheetTitle').textContent = st === 'done' && W.kind === 'order' ? 'Beställt' : st === 'done' ? (W.kind === 'move' ? 'Flyttad' : 'Bokat') : TITLES[st];
+  $('#sheetTitle').textContent = st === 'done' && W.kind === 'order' ? (W.result && E.payOf(W.result.order.pay).online && !W.result.order.paid ? 'Betala' : 'Beställt') : st === 'done' ? (W.kind === 'move' ? 'Flyttad' : 'Bokat') : TITLES[st];
   $('#sheetSub').textContent = sub;
   body.className = 'sbody' + (same || first ? '' : W.i >= W.shown ? ' fwd' : ' back');
-  body.innerHTML = { what: stepWhat, when: stepWhen, who: stepWho, cart: stepCart, mine: stepMine, done: stepDone }[st]();
+  body.innerHTML = { what: stepWhat, when: stepWhen, pay: stepPay, who: stepWho, cart: stepCart, mine: stepMine, done: stepDone }[st]();
   if (keep) { body.scrollTop = keep[0]; const d2 = $('.days', body); if (d2) d2.scrollLeft = keep[1]; }
   else { body.scrollTop = 0; const sel = $('.day[aria-pressed=true]', body); if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest', inline: 'center' }); }
   const canBack = W.i > 0 && st !== 'done';
-  let next = st === 'who' ? (W.kind === 'order' ? 'Lägg beställningen' : 'Boka ' + E.svc(W.svc).name.toLowerCase()) : st === 'when' && W.kind === 'move' ? 'Flytta hit' : 'Fortsätt';
+  let next = st === 'who' ? (W.kind === 'order' ? (W.pay === 'plats' ? 'Lägg beställningen' : 'Betala ' + kr(orderTotal())) : 'Boka ' + E.svc(W.svc).name.toLowerCase()) : st === 'when' && W.kind === 'move' ? 'Flytta hit' : 'Fortsätt';
   if (st === 'cart' && !S.cart.length) next = null;
   $('.sfoot', sh).innerHTML = (canBack ? '<button class="btn line" data-act="back"><span>Tillbaka</span></button>' : '') +
     (st === 'done' ? '<button class="btn ink" data-act="close"><span>Stäng</span></button>' : st === 'mine' ? '<button class="btn line" data-act="close"><span>Stäng</span></button>' :
@@ -397,7 +416,8 @@ function nextStep() {
     else if (!E.normReg(W.reg).ok) W.err = { field: 'reg', err: E.MSG.reg };
     else W.reg = E.normReg(W.reg).reg;
   }
-  if (st === 'cart') { if (!S.cart.length) return; if (!W.fit) { go('who'); return; } }
+  if (st === 'cart') { if (!S.cart.length) return; if (!W.fit) { go('pay'); return; } }
+  if (st === 'pay' && !E.payOf(W.pay)) W.err = { field: 'pay', err: E.MSG.pay };
   if (st === 'when') {
     if (!W.time) W.err = { field: 'time', err: E.MSG.time };
     else if (W.kind === 'move') { commitMove(); return; }
@@ -411,7 +431,7 @@ function commit() {
   lock(true);
   store.fresh();  // another tab may have taken the slot since this one was drawn
   const now = NOW(), q = { svc: W.svc, reg: W.reg, model: W.model, date: W.date, time: W.time, name: W.name, phone: W.phone, email: W.email, note: W.note, extras: W.extras };
-  const r = W.kind === 'order' ? E.order(S, Object.assign({}, q, { fit: W.fit }), now) : E.book(S, q, now);
+  const r = W.kind === 'order' ? E.order(S, Object.assign({}, q, { fit: W.fit, pay: W.pay }), now) : E.book(S, q, now);
   W.busy = false;
   if (!r.ok) {
     W.err = { field: r.field, err: r.err };
@@ -482,10 +502,12 @@ document.addEventListener('click', (e) => {
     // sheet
     case 'close': closeFlow(); break;
     case 'next': nextStep(); break;
-    case 'back': grab(); W.err = null; W.i = W.steps[W.i] === 'who' && W.kind === 'order' && !W.fit ? 0 : W.i - 1; renderSheet(); break;
+    case 'back': grab(); W.err = null; W.i = W.steps[W.i] === 'pay' && W.kind === 'order' && !W.fit ? 0 : W.i - 1; renderSheet(); break;
     case 'goto': grab(); go(d.v); break;
     case 'pick': grab(); W.svc = d.v; W.time = null; W.err = null; renderSheet(true); break;
     case 'day': W.date = d.v; W.time = null; W.err = null; renderSheet(true); break;
+    case 'paypick': grab(); W.pay = d.v; W.err = null; renderSheet(true); break;
+    case 'paynow': { store.fresh(); const r = E.payOrder(S, d.id, NOW()); if (r.ok) { store.save(); W.result.order = r.order; W.shown = -1; renderSheet(); toast(E.payText(r.order) + ' (exempel)'); if (window.NKAdmin && !$('#admin').hidden) window.NKAdmin.render(); } break; }
     case 'slot': W.time = d.v; W.err = null; renderSheet(true); break;
     case 'first': W.date = d.date; W.time = d.time; W.err = null; renderSheet(true); break;
     case 'qty': grab(); store.fresh(); E.cartSet(S, +d.k, (S.cart[+d.k] || { qty: 0 }).qty + +d.d); store.save(); renderTyres(); renderSheet(true); break;

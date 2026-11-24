@@ -77,6 +77,10 @@ for (const f of ['src/engine.js', 'src/app.js', 'src/admin.js', 'src/wheel/wheel
 read('tests/smoke.py').split('\n').forEach((l, i) => { if (/wait_for_selector\([^)]*option[^)]*\)/.test(l) && !/state="attached"/.test(l)) fail('L-018', `smoke.py line ${i + 1}: wait for <option> with state="attached"`); });
 // L-019 type="number" refuses a decimal comma; use type="text" inputmode="decimal".
 for (const f of ['src/index.html', 'src/app.js', 'src/admin.js']) if (/type=\\?["']?number/.test(read(f))) fail('L-019', `${f} has type="number"; use type="text" inputmode="decimal"`);
+// L-020 Brand names in Swedish copy keep their capitals: Swish, BankID, Klarna. Ids like 'swish' are fine.
+for (const f of ['src/index.html', 'src/app.js', 'src/admin.js', 'src/engine.js']) {
+  read(f).split('\n').forEach((l, i) => { for (const m of l.matchAll(/[a-zåäö] (swish|bankid|klarna)\b|\b(swish|bankid|klarna)[- ][a-zåäö]/gi)) if (/[a-z]/.test(m[0].match(/swish|bankid|klarna/i)[0][0]) && !/BankID/.test(m[0])) fail('L-020', `lower-case brand "${m[0].trim()}" on ${f} line ${i + 1}`); });
+}
 // L-008 Size budget: the whole site ships as one file and must stay quick on 4G.
 if (!quick && fs.existsSync(path.join(root, 'dist/index.html'))) {
   const kb = fs.statSync(path.join(root, 'dist/index.html')).size / 1024;

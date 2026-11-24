@@ -192,6 +192,7 @@ test('cart limits and orders are all-or-nothing', () => {
   assert.ok(k && Object.keys(S.stock).length > empty0);
   E.cartAdd(S, 'p5', k);
   const back = E.order(S, Object.assign({ fit: false, email: 'test@exempel.se' }, who), now);
+  assert.equal(back.order.pay, 'plats'); assert.equal(back.order.paid, false); assert.equal(E.payOrder(S, back.order.id, now).ok, false);
   assert.ok(back.ok && back.order.backorder); assert.equal(back.order.status, 'Beställd hos leverantör');
   assert.ok(!back.customer.cars.some((c) => !c.reg), 'no empty car rows');
   invariants(S);
@@ -254,4 +255,19 @@ test('fuzz: 3000 random bookings, cancellations and moves never break the rules'
   assert.ok(ok > 200 && refused > 200, `both outcomes exercised (${ok} booked, ${refused} refused)`);
   for (const d of E.workdays(MON, 8)) assert.equal(E.slots(S, d, 30, now).filter((x) => x.state === 'free').length >= 0, true);
   const st = E.dayStats(S, TUE, now); assert.ok(st.occ >= 0 && st.occ <= 100, 'occupancy ' + st.occ);
+});
+
+test('online payment is recorded only through payOrder, and bad methods are refused', () => {
+  const now = at(MON, '08:00'), S = empty(now), dim = '205/55 R16';
+  E.cartAdd(S, 'p3', dim); const cart0 = clone(S.cart), n0 = S.orders.length;
+  const bad = E.order(S, Object.assign({ fit: false, pay: 'bitcoin' }, who), now);
+  assert.equal(bad.ok, false); assert.equal(bad.field, 'pay'); assert.deepEqual(S.cart, cart0); assert.equal(S.orders.length, n0);
+  const r = E.order(S, Object.assign({ fit: false, pay: 'swish' }, who), now);
+  assert.ok(r.ok); assert.equal(r.order.pay, 'swish'); assert.equal(r.order.paid, false);
+  assert.equal(E.payText(r.order), 'Väntar på Swish');
+  assert.equal(E.payOrder(S, 'W-nope', now).ok, false);
+  const p = E.payOrder(S, r.order.id, now);
+  assert.ok(p.ok && p.order.paid); assert.equal(p.order.paidAt, MON + ' 08:00'); assert.equal(E.payText(p.order), 'Betald med Swish');
+  assert.ok(E.payOrder(S, r.order.id, now).ok, 'paying twice is harmless');
+  invariants(S);
 });

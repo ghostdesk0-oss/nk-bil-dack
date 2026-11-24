@@ -4,6 +4,11 @@ Mistakes already made in this repo, so no one makes them twice. Newest first.
 Format: what happened, the rule, and how it is enforced (`check.mjs` rule ID, test, or "manual").
 When a manual lesson bites a second time, turn it into a check.
 
+## L-020 Brand names keep their capitals
+**Happened:** the payment step built its text with `p.name.toLowerCase()`, so the page said "Betald med swish". A second slip: the new engine test assumed `empty()` has no orders, but it carries the example orders, so compare against the count before.
+**Rule:** never lower-case a brand (Swish, BankID, Klarna); use `E.payWord()`. Engine tests compare lengths with the state they started from.
+**Enforced:** `check.mjs` L-020 flags a lower-case brand next to Swedish words in `src/`; the test part is manual.
+
 ## L-019 Swedish decimals need a text field
 **Happened:** the tread-depth field was `type="number"`; typing "2,5" (the Swedish way) was refused.
 **Rule:** decimal inputs are `type="text" inputmode="decimal"` and the code accepts comma or point.

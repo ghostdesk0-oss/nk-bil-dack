@@ -160,7 +160,8 @@
     phone: 'Skriv ett svenskt mobilnummer, till exempel 070-123 45 67.',
     phoneStaff: 'Skriv ett telefonnummer, till exempel 026-12 34 56.',
     email: 'Mejladressen ser inte riktig ut. Rätta den eller lämna fältet tomt.',
-    cart: 'Varukorgen är tom.'
+    cart: 'Varukorgen är tom.',
+    pay: 'Välj hur du vill betala.'
   };
   const fail = (field, key) => ({ ok: false, field, err: E.MSG[key || field] });
 
@@ -245,8 +246,24 @@
     return { ok: true, line: it, capped };
   };
   E.cartSet = (S, idx, qty) => { const it = S.cart[idx]; if (!it) return; if (qty < 1) S.cart.splice(idx, 1); else it.qty = Math.min(E.MAXQ, qty); };
+  // Ways to pay for a web order. Online ones are simulated in the demo: no money moves, no card data is asked for.
+  E.PAY = [
+    { id: 'plats', name: 'Betala i verkstaden', sub: 'Kort eller Swish när du hämtar eller vi monterar', online: false },
+    { id: 'swish', name: 'Swish', sub: 'Betala nu med Swish-appen', online: true },
+    { id: 'kort', name: 'Kort', sub: 'Visa eller Mastercard, godkänn med BankID eller kod', online: true }
+  ];
+  E.payOf = (id) => E.PAY.find((x) => x.id === id) || null;
+  E.payWord = (p) => (p.id === 'swish' ? 'Swish' : p.name.toLowerCase());  // Swish is a brand name
+  E.payText = (o) => { const p = E.payOf(o.pay || 'plats'); return !p.online ? 'Betalas i verkstaden' : (o.paid ? 'Betald med ' : 'Väntar på ') + E.payWord(p); };
+  E.payOrder = (S, id, now) => {
+    const o = S.orders.find((x) => x.id === id);
+    if (!o || !E.payOf(o.pay || 'plats').online) return { ok: false };
+    if (!o.paid) { o.paid = true; o.paidAt = now ? now.date + ' ' + E.toT(now.mins) : ''; o.fresh = true; }
+    return { ok: true, order: o };
+  };
   E.order = (S, q, now) => {
     if (!S.cart.length) return fail('cart');
+    const pay = q.pay || 'plats'; if (!E.payOf(pay)) return fail('pay');
     let v, b = null;
     if (q.fit) {
       v = E.check(S, Object.assign({}, q, { svc: 'montering' }), now);
@@ -262,7 +279,7 @@
     const items = S.cart.map((i) => ({ pid: i.pid, dim: i.dim, qty: i.qty, each: E.price(E.prod(i.pid), i.dim), back: Math.max(0, i.qty - E.stockOf(S, i.pid + '|' + i.dim)) }));
     const backorder = items.some((i) => i.back > 0);
     const o = { id: 'W-' + S.oseq++, custId: c.id, date: now.date, items, fit: !!q.fit, bookingId: b ? b.id : null, total: E.cartTotal(S) + (q.fit ? E.FIT : 0),
-      status: backorder ? 'Beställd hos leverantör' : q.fit ? 'Väntar på montering' : 'Plockas', backorder, own: true, fresh: true };
+      status: backorder ? 'Beställd hos leverantör' : q.fit ? 'Väntar på montering' : 'Plockas', backorder, pay, paid: false, own: true, fresh: true };
     if (b) b.note = ('Webborder ' + o.id + ': ' + items.map((i) => i.qty + ' st ' + E.prod(i.pid).brand + ' ' + E.prod(i.pid).model + ' ' + i.dim).join(', ') + '. ' + b.note).trim();
     S.orders.unshift(o);
     items.forEach((i) => { const k = i.pid + '|' + i.dim; S.stock[k] = Math.max(0, E.stockOf(S, k) - i.qty); });

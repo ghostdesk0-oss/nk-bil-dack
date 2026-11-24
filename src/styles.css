@@ -363,6 +363,9 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stro
 .done p{max-width:40ch;color:var(--ink2);margin-top:8px}
 .done p b{color:var(--ink)}
 .ref{display:inline-block;margin-top:12px;border:2px solid var(--red);border-radius:7px;padding:3px 14px;font-size:1.35rem}
+.paybox{width:100%;max-width:380px;margin-top:18px;border:2px solid var(--concrete);border-radius:8px;padding:16px;text-align:left;display:grid;gap:8px}
+.paybox b{font-size:1.05rem}.paybox p{margin:0}.paybox .btn{width:100%;margin-top:6px}
+.done .paid{display:flex;align-items:center;gap:6px;color:var(--ok-ink);font-weight:800}.done .paid .i{width:18px;height:18px;flex:none}
 .dacts{display:grid;gap:10px;width:100%;max-width:360px;margin-top:22px}
 .dacts .btn{width:100%}
 .citem{display:grid;grid-template-columns:1fr auto;gap:6px 10px;padding:14px 0;border-bottom:1px solid var(--concrete)}

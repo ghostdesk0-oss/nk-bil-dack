@@ -4,6 +4,11 @@ What changed, in words Nicklas would understand where it is visible to him.
 Newest first. Add to Unreleased as you go; cut a version when the demo link is republished.
 
 ## Unreleased
+Payment in the tyre shop (example only).
+- Ordering tyres now has a "Betalning" step: pay in the workshop (chosen from the start), Swish or card. The cart says up front which ways you can pay.
+- Swish and card are examples: the page shows "Öppna Swish och godkänn …" and a button to pretend to approve. No money moves and no card details are asked for.
+- Verkstaden shows on every web order whether it is paid in the workshop, waiting for Swish or card, or paid.
+
 Revamp. The 3D car is gone; the page is built around booking.
 - Shorter page: hero with the plate and the 3D tyre, the tyre story, a price board, the tyre shop, the tyre hotel, and one block with address, hours, phone and the Google rating. About half the length on a phone.
 - The plate scan now ends with one button: "Boka hjulskifte idag 10:30". It opens the booking at the last step, so a booking takes a name, a mobile number and one tap.

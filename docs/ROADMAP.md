@@ -62,5 +62,5 @@ Goal: bookings survive a page reload and reach the workshop on any device.
 
 ## Not decided
 
-- Payments online (Swish, Klarna) or keep paying in the workshop.
+- Payments online or keep paying in the workshop. The demo shows Swish and card for tyre orders as examples (no money moves); services are paid on site. A real provider (Swish Handel, a card provider) comes with the phase 2 backend.
 - Whether the shop shows live supplier stock or only what is on the shelf.
