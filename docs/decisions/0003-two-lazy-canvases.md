@@ -1,6 +1,6 @@
 # 0003: Two WebGL canvases, the car one mounted lazily
 
-**Status:** accepted
+**Status:** superseded by 0004
 **Date:** 2026-11-13
 
 ## Context

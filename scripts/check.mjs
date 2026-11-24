@@ -29,7 +29,7 @@ css.split('\n').forEach((l, i) => { if (/:hover\b/.test(l) && !/@media\s*\(hover
 // L-003 View transitions go through vt(), which swallows the "skipped" rejection.
 {
   const n = (app.match(/startViewTransition\(/g) || []).length;
-  if (n !== 1 || !/function vt\(fn\)\{[^\n]*\.finished\.catch/.test(app)) fail('L-003', 'call document.startViewTransition only inside vt(), and keep its .catch handlers');
+  if (n !== 1 || !/function vt\(fn\)\s*\{[^\n]*\.finished\.catch/.test(app)) fail('L-003', 'call document.startViewTransition only inside vt(), and keep its .catch handlers');
 }
 // L-004 The demo must say it is a demo until the backend and consent exist.
 if (!/name="robots" content="noindex/.test(html)) fail('L-004', 'noindex meta is missing from src/index.html');
@@ -43,11 +43,24 @@ for (const [f, t] of [['src/index.html', html], ['src/app.js', app]]) {
 if (!/prefers-reduced-motion/.test(css)) fail('L-006', 'styles.css lost its prefers-reduced-motion block');
 // L-007 UI animations that must finish use wall-clock time, not the clamped frame clock.
 {
-  const car = read('src/car/car.js');
-  if (/S\.swap\s*=\s*\{\s*t:\s*clock/.test(car)) fail('L-007', 'rim swap timed on the frame clock; use performance.now()');
+  const wheel = read('src/wheel/wheel.js');
+  if (!/S\.scan\s*=\s*\{\s*t:\s*performance\.now\(\)/.test(wheel)) fail('L-007', 'the plate scan must be timed on performance.now(), not the frame clock');
 }
+// L-013 Bookings, carts and orders change only through the engine, which checks capacity and re-reads storage.
+for (const f of ['src/app.js', 'src/admin.js']) {
+  const t = read(f), m = t.match(/\b(?:S|s|S\(\))\.(?:bookings|orders|cart)\.(?:push|unshift|splice)\(/);
+  if (m) fail('L-013', `${f} changes ${m[0]} directly; go through NKEngine (book, cancel, move, cartAdd, cartSet, order)`);
+}
+// L-014 Internal links (repository, roadmap) never appear on the customer side.
+for (const [f, t] of [['src/index.html', html], ['src/app.js', app]]) {
+  const m = t.match(/github\.com|roadmap\.html/i);
+  if (m) fail('L-014', `"${m[0]}" in ${f}: internal links belong in Verkstaden only`);
+}
+// L-015 Root state classes (.js, .ready, .nogl, .nodemo, .inspect, .adm, .tw) are only prefixes. A component
+// class with the same name styles <html> or <body> too: '.js{display:flex}' once made the whole page a flex row.
+css.split('\n').forEach((l, i) => { const m = l.match(/(?:^|[},]\s*)\.(js|ready|nogl|nodemo|inspect|adm|tw)\s*[{,:]/); if (m) fail('L-015', `styles.css line ${i + 1} styles .${m[1]} on its own; it is a state class on <html>/<body>, pick another name`); });
 // Syntax of every source file.
-for (const f of ['src/app.js', 'src/car/car.js', 'src/wheel/wheel.js', 'scripts/build.mjs']) {
+for (const f of ['src/engine.js', 'src/app.js', 'src/admin.js', 'src/wheel/wheel.js', 'scripts/build.mjs']) {
   try { execFileSync(process.execPath, ['--check', path.join(root, f)], { stdio: 'pipe' }); }
   catch (e) { fail('syntax', `${f}: ${String(e.stderr).split('\n').slice(0, 4).join(' ')}`); }
 }
@@ -60,6 +73,10 @@ for (const f of ['src/app.js', 'src/car/car.js', 'src/wheel/wheel.js', 'scripts/
     if (next && /^\s*assert\b/.test(next)) fail('L-009', `smoke.py line ${i + 1}: fixed wait before an assert; use wait_for_selector/wait_for_function`);
   });
 }
+// L-018 <option> elements are never "visible": wait for them as attached.
+read('tests/smoke.py').split('\n').forEach((l, i) => { if (/wait_for_selector\([^)]*option[^)]*\)/.test(l) && !/state="attached"/.test(l)) fail('L-018', `smoke.py line ${i + 1}: wait for <option> with state="attached"`); });
+// L-019 type="number" refuses a decimal comma; use type="text" inputmode="decimal".
+for (const f of ['src/index.html', 'src/app.js', 'src/admin.js']) if (/type=\\?["']?number/.test(read(f))) fail('L-019', `${f} has type="number"; use type="text" inputmode="decimal"`);
 // L-008 Size budget: the whole site ships as one file and must stay quick on 4G.
 if (!quick && fs.existsSync(path.join(root, 'dist/index.html'))) {
   const kb = fs.statSync(path.join(root, 'dist/index.html')).size / 1024;

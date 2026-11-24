@@ -13,7 +13,8 @@ npm install
 npm run dev      # bygger om vid ändring, http://localhost:5173
 npm run build    # skriver dist/index.html
 npm run check    # projektets regler, snabbt
-npm test         # bygg, regler och röktest i headless Chromium (kräver Python + Playwright)
+npm run test:engine  # bokningsmotorn, en sekund
+npm test         # bygg, regler, motorn och stresstestet i headless Chromium (kräver Python + Playwright)
 ```
 
 Röktestet behöver `pip install playwright && playwright install chromium`.
@@ -24,12 +25,14 @@ Röktestet behöver `pip install playwright && playwright install chromium`.
 | --- | --- |
 | `src/index.html` | Sidans markup, med platshållare för stil och script |
 | `src/styles.css` | All CSS. Färger och rörelse ligger som variabler överst i `:root` |
-| `src/app.js` | Sidlogik: bokning, varukorg, verkstadsvy, scroll-berättelsen, hotspots, regskanning |
+| `src/engine.js` | Bokningsmotorn: öppettider, lediga tider, två lyftar, validering, bokningar, varukorg, ordrar, sparad data |
+| `src/app.js` | Kundsidan: regskanning, 3D-hjulets rörelser, prislista, däckshop, däckhotell, bokningsfönstret |
+| `src/admin.js` | Verkstaden: dagens läge, lyftarna, jobbkort, bokningar, däckhotell, kunder, ordrar, lager, logg |
 | `src/wheel/wheel.js` | 3D-hjulet i hero och scroll-berättelsen: golv med spegling, dimma, snö, dubbar, laser |
-| `src/car/car.js` | Bilkonfiguratorn: bil, fyra hjul, fälg- och lackbyten, fjädring, 100 km/h-läge |
 | `scripts/build.mjs` | Bäddar in typsnitt, CSS, 3D-bundle och app-script i `dist/index.html` |
 | `scripts/dev.mjs` | Lokal förhandsvisning med ombyggnad vid ändring |
-| `tests/smoke.py` | Går igenom regskanning, bokning, köp och verkstadsvyn |
+| `tests/engine.test.mjs` | Enhetstester och slumptest av bokningsmotorn (krockar, stängning, natten) |
+| `tests/smoke.py` | Stresstest i webbläsaren: alla flöden, två flikar, utan WebGL, mobil och desktop |
 | `AGENTS.md` | Regler för AI-agenter (Claude, Codex, Cursor). `CLAUDE.md` importerar den |
 | `docs/AI-WORKFLOW.md` | Hur projektet lär sig av fel, feedback och granskningar |
 | `docs/LESSONS.md` | Misstag som redan gjorts, och hur de stoppas |
@@ -57,14 +60,14 @@ Det `wheel.js` exponerar:
 
 ## Data
 
-All data ligger i `app.js` (`SERVICES`, `PRODUCTS`, `seed()`), och sparas per
-webbläsare i `localStorage`. Det finns ingen backend. Se `docs/ROADMAP.md`.
+Katalog, öppettider och exempeldata ligger i `src/engine.js` (`SERVICES`, `PRODUCTS`, `seed()`).
+Allt sparas per webbläsare i `localStorage` under `nk-demo-v7`. Kundernas bokningar finns kvar
+över natten; bara exempelveckan ritas om. Det finns ingen backend. Se `docs/ROADMAP.md`.
 
 ## Publicera
 
 `dist/index.html` är hela sajten. Den kan läggas på vilken statisk värd som helst.
-Workflowen *Deploy to GitHub Pages* körs manuellt under Actions när Pages är
-påslaget för repot (Settings → Pages → Source: GitHub Actions).
+Workflowen *Deploy to GitHub Pages* publicerar automatiskt vid varje push till `main`.
 
 Sidan har `noindex` så att demon inte dyker upp som NK:s riktiga sajt i Google.
 Ta bort den raden i `src/index.html` först när sajten är skarp.

@@ -35,18 +35,18 @@ One self-contained HTML page, no server. All data is example data in the browser
 - Hero: a 3D tyre on a reflective studio floor. Reg-nummer plate with laser scan,
   hotspots that open service cards, burnout on long press.
 - Scroll story: the wheel comes apart (tread, rim, brake). Season switch with studs and snow.
-- Car configurator: low-poly car in a wind-tunnel studio. Swap rims (Sport, Classic,
-  Black Edition), tyres (summer, studless, studded), paint, LED lights and underglow.
-  Camera presets, drag to orbit, pinch to zoom, 100 km/h test mode, two info pins.
-- Action bar shows the live selection and opens a booking drawer prefilled with it.
-- Quick quote box, service cards with prices, rating strip, address, hours, map link, click to call.
-- Tyre shop with tilt cards, cart and checkout with fitting time.
+- Price board: every service with its next free time; one tap opens the booking at the time step.
+- Booking sheet: service, time, details, done. Calendar file, directions, "Mina bokningar" (move, cancel).
+- Address, hours, open-now, map link, click to call, Google rating and what reviews mention.
+- Tyre shop: size picker, seasons, cart with limits, checkout with or without fitting, backorders.
 - Tyre hotel builder with add-ons.
 
 **Workshop side ("Verkstaden")**
 - Daily brief written from today's data, KPIs, lift timeline (two lifts), bookings to confirm,
   coming days.
-- Bookings, customers, tyre hotel, web orders and stock tabs.
+- Job cards: confirm, on the lift, done with sms; lift choice with clash check; tread depth, checklist, note.
+- Phone bookings and drop-ins (queue when both lifts are busy), move, cancel.
+- Bookings, tyre hotel (next free shelf, low-tread flags, book a swap), customers, web orders, stock, error log.
 - Auto-confirm switch for web bookings.
 
 ## Principles

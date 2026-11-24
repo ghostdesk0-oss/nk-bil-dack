@@ -4,6 +4,26 @@ What changed, in words Nicklas would understand where it is visible to him.
 Newest first. Add to Unreleased as you go; cut a version when the demo link is republished.
 
 ## Unreleased
+Revamp. The 3D car is gone; the page is built around booking.
+- Shorter page: hero with the plate and the 3D tyre, the tyre story, a price board, the tyre shop, the tyre hotel, and one block with address, hours, phone and the Google rating. About half the length on a phone.
+- The plate scan now ends with one button: "Boka hjulskifte idag 10:30". It opens the booking at the last step, so a booking takes a name, a mobile number and one tap.
+- Every service on the price board shows its next free time and books in one tap.
+- Booking checks the time again at the moment you confirm. Two people (or two tabs) can no longer get the same slot; the second one is told it was just taken and picks another.
+- Times that have already passed today can no longer be booked, and there is 30 minutes' notice for same-day bookings.
+- Bookings no longer vanish at midnight. Customers' bookings, orders and the cart are kept; only the example week is redrawn.
+- After booking: "Lägg i kalendern" downloads a calendar file with a reminder two hours before, plus "Visa vägen".
+- "Mina bokningar": find your bookings by mobile number, move to another time or cancel.
+- Plates and mobile numbers are understood however they are typed (abc123, +46 70…), personalised plates included. Errors appear under the right field.
+- The cart: max 8 of one tyre, change the number or remove, and tyres not in stock are ordered home instead of refused.
+- One Verkstaden instead of two. It sees web bookings live, gives each car a lift, warns when both lifts are busy, logs tread depth (warns under 3 mm), a checklist and a note per job, "Klar, skicka sms", phone bookings and drop-ins, moves and cancellations, the tyre hotel with next free shelf, customers, orders and stock. A short guide explains it.
+- The phone's back button closes the booking sheet instead of leaving the page.
+- Without WebGL (old phones) the page shows a flat version quietly.
+- The 3D tyre stops drawing when it is scrolled away or Verkstaden is open.
+- Tooling: two design skills in `.claude/skills/` (an anti-slop audit and the tasteskill build kit).
+- The preview strip reads "Förhandsvisning, ej publicerad" and can be hidden; Verkstaden stays on Shift+V and the footer wordmark.
+
+## 0.2.1 – 2026-11-14 to 2026-11-22
+Items about the car configurator were removed again in the revamp above.
 - Sidewall text (incl. your own) reads left-to-right again; the arc drawing mirrored each letter.
 - Shop clock and open/closed status always follow Swedish time, whatever the visitor's device timezone.
 - Story drag layer no longer swallows taps on rim colours and the tyre-text input.

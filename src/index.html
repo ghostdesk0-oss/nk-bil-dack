@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NK Bil & Däck – demo</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230A0607'/%3E%3Ctext x='16' y='22' font-family='Arial Black,Arial' font-size='14' font-style='italic' font-weight='900' fill='%23E4102A' text-anchor='middle'%3ENK%3C/text%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0D0A0A">
+<title>NK Bil & Däck, Gävle – förhandsvisning</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230D0A0A'/%3E%3Ctext x='16' y='22' font-family='Arial Black,Arial' font-size='14' font-style='italic' font-weight='900' fill='%23E4102A' text-anchor='middle'%3ENK%3C/text%3E%3C/svg%3E">
 <style>
 /*FONTS*/
 /*STYLES*/
@@ -16,7 +17,8 @@
 function add(m,s){L.unshift({t:new Date().toISOString(),m:String(m).slice(0,300),s:String(s||'').slice(0,200),v:'__VERSION__',w:innerWidth+'x'+innerHeight});L=L.slice(0,25);try{localStorage.setItem(K,JSON.stringify(L))}catch(x){}}
 addEventListener('error',function(e){add(e.message,(e.filename||'').split('/').pop()+':'+e.lineno+':'+e.colno)});
 addEventListener('unhandledrejection',function(e){var r=e.reason;add('Promise: '+(r&&r.message||r),r&&r.stack&&r.stack.split('\n')[1])});
-window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.removeItem(K)}catch(x){}}}})();</script>
+window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.removeItem(K)}catch(x){}}}})();
+try{if(sessionStorage.getItem('nk-demox'))document.documentElement.classList.add('nodemo')}catch(e){}</script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -26,217 +28,167 @@ window.NKErr={list:function(){return L},clear:function(){L=[];try{localStorage.r
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
   <symbol id="i-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
   <symbol id="i-dn" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-go" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></symbol>
   <symbol id="i-snd" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="w" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.4-4 4.5-6 8-6s6.6 2 8 6"/></symbol>
 </defs></svg>
 
-<div class="demo"><div class="wrap">
-  <span>Demo med exempeldata</span>
+<div class="demo" role="region" aria-label="Förhandsvisning"><div class="wrap">
+  <p><b>Förhandsvisning, ej publicerad.</b> <span>Priser, lager och bokningar är exempel.</span></p>
   <div class="seg" role="group" aria-label="Välj vy">
     <button data-view="site" aria-pressed="true">Kundsidan</button>
     <button data-view="admin" aria-pressed="false">Verkstaden</button>
   </div>
-  <button class="dx" data-act="demox" aria-label="Dölj demonotisen"><svg class="i"><use href="#i-x"/></svg></button>
+  <button class="dx" data-act="demox" aria-label="Dölj raden om förhandsvisning"><svg class="i"><use href="#i-x"/></svg></button>
 </div></div>
 
 <div id="site">
-  <div class="grain" aria-hidden="true"></div>
+  <a class="skip" href="#tjanster">Hoppa till tjänster och priser</a>
   <canvas id="wheel" aria-label="Ett hjul i 3D som plockas isär när du scrollar." role="img"></canvas>
   <canvas id="smoke" aria-hidden="true"></canvas>
   <div class="ghost d" aria-hidden="true"><span>Mönster</span><span>Fälg</span><span>Broms</span></div>
   <div id="hs">
-    <button class="hs" data-act="hot" data-v="tread" aria-label="Visa däckbyte"></button>
-    <button class="hs" data-act="hot" data-v="sidewall" aria-label="Visa balansering"></button>
-    <button class="hs" data-act="hot" data-v="rim" aria-label="Visa däckhotell"></button>
-    <div class="badge" data-a="tread"><span></span></div><div class="badge" data-a="sidewall"><span></span></div><div class="badge" data-a="rim"><span></span></div>
+    <button class="hs" data-act="hot" data-v="tread" aria-label="Om hjulskifte" tabindex="-1" inert></button>
+    <button class="hs" data-act="hot" data-v="sidewall" aria-label="Om montering och balansering" tabindex="-1" inert></button>
+    <button class="hs" data-act="hot" data-v="rim" aria-label="Om däckhotell" tabindex="-1" inert></button>
+    <div class="badge"><span></span></div><div class="badge"><span></span></div><div class="badge"><span></span></div>
   </div>
-  <div class="gcard" id="gcard" role="dialog" aria-live="polite" aria-labelledby="gcardTitle" hidden></div>
+  <div class="gcard" id="gcard" role="dialog" aria-labelledby="gcardTitle" hidden></div>
+
   <header class="top"><div class="wrap">
-    <a class="plate" href="#">NK Bil & Däck</a>
-    <nav class="nav" aria-label="Huvudmeny"><a href="#tjanster">Tjänster</a><a href="#dack">Köp däck</a><a href="#hotell">Däckhotell</a><a href="#hitta">Hitta hit</a></nav>
-    <button class="snd" data-act="snd" aria-pressed="false" aria-label="Ljud på eller av"><svg class="i"><use href="#i-snd"/></svg></button>
-    <button class="cart" data-act="cart" aria-label="Öppna varukorgen"><svg class="i"><use href="#i-cart"/></svg><b id="cartn">0</b></button>
+    <a class="plate" href="#" aria-label="NK Bil & Däck, till toppen">NK Bil & Däck</a>
+    <nav class="nav" aria-label="Huvudmeny"><a href="#tjanster">Priser</a><a href="#dack">Köp däck</a><a href="#hotell">Däckhotell</a><a href="#hitta">Hitta hit</a></nav>
+    <div class="tacts">
+      <button class="tbtn" data-act="mine" aria-label="Mina bokningar"><svg class="i"><use href="#i-user"/></svg><span>Mina bokningar</span></button>
+      <button class="tbtn cart" data-act="cart" aria-label="Varukorgen är tom"><svg class="i"><use href="#i-cart"/></svg><b id="cartn" data-n="0">0</b></button>
+    </div>
   </div></header>
 
   <section class="hero"><div class="wrap">
     <h1 class="d"><span><i>Däck.</i></span><span><i>Fälgar.</i></span><span><i>Verkstad.</i></span></h1>
-    <div class="hero-meta">
-      <p class="hero-sub">Skriv ditt regnummer så visar vi rätt däck och närmaste lediga tid.</p>
-      <p class="trustpill">Brynäsgatan 67, Gävle <i>•</i> Sedan 1993 <i>•</i> 4,6 ★ på Google</p>
-      <a class="hq-link" href="#kontakt">Punktering? Kom direkt →</a>
-    </div>
     <form class="plateform" id="plateform" novalidate>
-      <label class="regplate" id="regPlate"><span>S</span><input id="heroReg" maxlength="7" placeholder="ABC 123" aria-label="Regnummer" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
-      <button class="btn" type="submit"><span>Skanna</span></button>
+      <label class="lbl" for="heroReg">Skriv regnumret, så visar vi rätt däck och första lediga tid</label>
+      <div class="prow">
+        <span class="regplate" id="regPlate"><span aria-hidden="true">S</span><input id="heroReg" maxlength="8" placeholder="ABC 123" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go"></span>
+        <button class="btn" type="submit"><span>Visa</span></button>
+      </div>
+      <p class="ferr" id="heroErr" role="alert"></p>
     </form>
+    <p class="trust">På Brynäsgatan 67 sedan 1993. <b>4,6</b> av 5 på Google, 155 omdömen.</p>
     <div class="stage">
       <div class="dragzone" id="dragHero"></div>
-      <div class="hint" id="hint"><svg viewBox="0 0 26 14" aria-hidden="true"><path d="M5 3L1 7l4 4M21 3l4 4-4 4M1 7h24"/></svg>Håll in för burnout</div>
-      <div class="scrollhint" aria-hidden="true">Scrolla för att se hjulet plockas isär<svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+      <div class="hint" id="hint"><span>Håll inne för burnout</span><button class="snd" data-act="snd" aria-pressed="false" aria-label="Ljud på"><svg class="i"><use href="#i-snd"/></svg></button></div>
     </div>
   </div></section>
 
-  <section class="story" id="story"><div class="pin">
-    <div class="dragzone" id="dragStory" style="inset:0"></div>
+  <section class="story" id="story" aria-label="Hjulet, del för del"><div class="pin">
+    <div class="dragzone" id="dragStory"></div>
     <div class="caps">
       <article class="cap">
         <h2 class="d">Rätt mönster för säsongen</h2>
         <p>Växla mellan sommar, dubbfritt och dubbat och se hur mönstret ändras.</p>
         <div class="season" data-season></div>
-        <a class="btn" href="#dack"><span>Se däcken</span></a>
       </article>
       <article class="cap">
         <h2 class="d">Fälgar på ditt sätt</h2>
-        <p>Det står Specialfälgar på skåpbilen av en anledning. Välj färg och prova din egen text på däcket.</p>
+        <p>Det står Specialfälgar på skåpbilen av en anledning. Välj färg och skriv din egen text på däcket.</p>
         <div class="cfg">
-          <button class="sw" style="--c:var(--silver)" data-act="finish" data-v="silver" data-n="Silver" aria-pressed="true" aria-label="Silver fälg"></button>
-          <button class="sw" style="--c:var(--tar)" data-act="finish" data-v="black" data-n="Svart" aria-pressed="false" aria-label="Svart fälg"></button>
-          <button class="sw" style="--c:var(--red)" data-act="finish" data-v="red" data-n="Röd" aria-pressed="false" aria-label="Röd fälg"></button>
-          <button class="sw" style="--c:var(--orange)" data-act="finish" data-v="orange" data-n="Orange, som på skåpbilen" aria-pressed="false" aria-label="Orange fälg"></button>
-          <input id="tyreText" maxlength="16" placeholder="Din text på däcket" aria-label="Din text på däcket" autocomplete="off">
+          <button class="sw" style="--c:var(--silver)" data-act="finish" data-v="silver" aria-pressed="true" aria-label="Silverfärgad fälg"></button>
+          <button class="sw" style="--c:var(--tar)" data-act="finish" data-v="black" aria-pressed="false" aria-label="Svart fälg"></button>
+          <button class="sw" style="--c:var(--red)" data-act="finish" data-v="red" aria-pressed="false" aria-label="Röd fälg"></button>
+          <button class="sw" style="--c:var(--orange)" data-act="finish" data-v="orange" aria-pressed="false" aria-label="Orange fälg, som på skåpbilen"></button>
+          <input id="tyreText" maxlength="16" placeholder="Din text på däcket" aria-label="Din text på däcket" autocomplete="off" enterkeyhint="done">
         </div>
       </article>
       <article class="cap">
-        <h2 class="d">Bromsar och verkstad</h2>
-        <p>Service, felsökning och reparationer för personbilar och transportbilar. Du får ett pris innan vi börjar.</p>
+        <h2 class="d">Bromsar och service</h2>
+        <p>Service, felsökning och reparationer för personbilar och transportbilar. Du får priset innan vi börjar.</p>
         <button class="btn" data-act="book" data-svc="verkstad"><span>Boka verkstadstid</span></button>
       </article>
     </div>
     <div class="ticks" aria-hidden="true"><i></i><i></i><i></i></div>
   </div></section>
 
-  <section class="cfg-sec" id="bygg">
-    <div class="cstage" id="cstage">
-      <canvas id="car" role="img" aria-label="En bil i 3D. Byt fälg, däck, lack och ljus. Dra för att snurra runt bilen."></canvas>
-      <div class="ctop wrap">
-        <h2 class="d">Prova på bilen</h2>
-        <button class="hwy" id="hwy" data-act="hwy" aria-pressed="false"><span class="spd"><b id="kmh">0</b> km/h</span><span class="lbl">Testa rull</span></button>
-      </div>
-      <div class="cpins" id="cpins">
-        <button class="cpin" data-act="cpin" data-v="wheel" aria-label="Om hjul och balansering"></button>
-        <button class="cpin" data-act="cpin" data-v="brake" aria-label="Om bromsar"></button>
-        <div class="ctip" id="ctip" role="status"></div>
-      </div>
-      <div class="ccam" role="group" aria-label="Kameravinklar">
-        <button data-act="copt" data-k="view" data-v="front" aria-pressed="true">3/4 Front</button>
-        <button data-act="copt" data-k="view" data-v="side" aria-pressed="false">Sidoprofil</button>
-        <button data-act="copt" data-k="view" data-v="close" aria-pressed="false">Närbild Hjul</button>
-      </div>
-      <div class="cdock">
-        <div class="ccats" id="ccats" role="tablist" aria-label="Konfiguratorns val"></div>
-        <div class="copts" id="copts"></div>
-        <div class="cbar"><p class="csel" id="csel"></p><button class="btn" data-act="cfgbook"><span>Boka tid med detta val</span></button></div>
-      </div>
+  <section class="sec board-sec" id="tjanster"><div class="wrap">
+    <div class="head">
+      <h2 class="d">Boka direkt</h2>
+      <p class="lede">Fast pris där det går, annars får du priset innan vi börjar. Tryck på en tjänst så väljer du tid.</p>
     </div>
-  </section>
-
-  <section class="sec light sheetlike" id="kontakt"><div class="wrap">
-    <div class="proof">
-      <span class="stars" role="img" aria-label="4,6 av 5"><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><i style="width:92%"><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg></i></span>
-      <span><b>4,6</b> på Google, 155 omdömen</span>
-      <span>Sedan 1993 på Brynäs</span>
-      <span>Drop-in vid punktering</span>
+    <div class="drop">
+      <div><b>Punktering?</b> <span>Kom direkt, drop-in går bra. Ring gärna så vet vi att du är på väg.</span></div>
+      <a class="btn sm line" href="tel:+4626180501"><span><svg class="i"><use href="#i-tel"/></svg>026-18 05 01</span></a>
     </div>
-    <div class="visit">
-      <div>
-        <p class="status" id="openNow"></p>
-        <h2 class="d" style="margin-top:10px">Punktering? Kom direkt.</h2>
-        <a class="bigtel d" href="tel:+4626180501">026-18 05 01</a>
-        <dl>
-          <dt>Adress</dt><dd>Brynäsgatan 67, Gävle</dd>
-          <dt>Idag</dt><dd id="todayHours"></dd>
-          <dt>Mejl</dt><dd><a href="mailto:info@nkbilochdack.se">info@nkbilochdack.se</a></dd>
-        </dl>
-      </div>
-      <form class="quote" id="quote" novalidate>
-        <h3 class="d">Snabboffert</h3>
-        <p>Regnummer och vad det gäller. Du väljer tid i nästa steg.</p>
-        <label class="regplate"><span>S</span><input id="qReg" maxlength="7" placeholder="ABC 123" aria-label="Regnummer" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
-        <div class="qsvc" id="qsvc"></div>
-        <button class="btn" type="submit"><span>Få offert och tid</span></button>
-      </form>
-    </div>
+    <ul class="board" id="board"></ul>
+    <p class="fine">Lyktpolering 1 500 kr är NK:s eget pris. Övriga priser och lediga tider är exempel i förhandsvisningen.</p>
   </div></section>
 
-  <section class="sec dark" id="tjanster"><div class="tape" aria-hidden="true"><div class="tape-in d" id="tapeIn"></div></div><div class="wrap">
-    <h2 class="d">Det här gör vi</h2>
-    <p class="lede">Personbilar och transportbilar. Fast pris där det går, annars får du priset innan vi börjar.</p>
-    <div class="scards" id="scards"></div>
-    <h3 class="d allsvc">Alla tjänster</h3>
-    <div class="svc" id="services"></div>
-    <p class="fine">Lyktpolering är NK:s eget pris. Övriga priser är exempel i demon.</p>
-  </div></section>
-
-  <section class="sec light" id="dack"><div class="wrap">
-    <h2 class="d">Vilken dimension har du?</h2>
-    <p class="lede">Siffrorna står på sidan av däcket. Ställ in dem här, lägg däcken i varukorgen och välj monteringstid.</p>
-    <div class="size d" id="size"></div>
-    <div class="season" data-season></div>
+  <section class="sec shop" id="dack"><div class="wrap">
+    <div class="head">
+      <h2 class="d">Köp däck</h2>
+      <p class="lede">Siffrorna står på däckets sida. Ställ in dem, välj säsong och lägg däcken i varukorgen. Montering bokar du i samma veva.</p>
+    </div>
+    <div class="sizebox">
+      <div class="size d" id="size" role="group" aria-label="Däckdimension"></div>
+      <p class="sizenote" id="sizeNote" hidden></p>
+      <div class="season" data-season></div>
+    </div>
     <div class="tyres" id="tyres"></div>
-    <p class="fine">Vinterdäck krävs vid vinterväglag 1 december till 31 mars.</p>
+    <p class="fine">Vinterdäck krävs vid vinterväglag 1 december till 31 mars. Modeller, priser och lagersaldo är exempel.</p>
   </div></section>
 
-  <section class="sec band on-red" id="hotell"><div class="wrap cols">
+  <section class="sec hotel" id="hotell"><div class="wrap cols">
     <div>
-      <h2 class="d">Slipp bära däck</h2>
-      <p class="price"><b class="d" id="hotelPrice">895 kr</b>per säsong. Exempelpriser i demon.</p>
-      <button class="btn ink" data-act="bookhotel"><span>Boka däckhotell</span></button>
+      <h2 class="d">Slipp bära däcken</h2>
+      <p class="lede">Vi förvarar hjulen, skiftar vår och höst och mäter mönsterdjupet så du vet när det är dags för nya.</p>
+      <p class="price"><b class="d" id="hotelPrice">895 kr</b><span>per säsong, exempelpris</span></p>
     </div>
-    <div class="opts" id="hotelOpts">
-      <label class="ck"><input type="checkbox" checked disabled><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Förvaring och skifte<small>Vi skiftar vår och höst och mäter mönsterdjupet</small></span><em>Ingår</em></label>
-      <label class="ck"><input type="checkbox" data-x="wash" data-p="150" data-n="Hjultvätt"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Hjultvätt<small>Rena hjul innan de ställs undan</small></span><em>+150 kr</em></label>
-      <label class="ck"><input type="checkbox" data-x="bal" data-p="300" data-n="Balansering"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Balansering<small>Inför varje säsong, så slipper du vibrationer</small></span><em>+300 kr</em></label>
-    </div>
-  </div></section>
-
-  <section class="sec light"><div class="wrap score">
-    <div class="num d" aria-label="4,6 av 5">4,6</div>
     <div>
-      <h2 class="d">Av 5 på Google</h2>
-      <p class="lede">155 omdömen i november 2026. Det här är vad kunderna oftast skriver om.</p>
-      <div class="themes">
-        <div><b>Trevligt bemötande</b><span>Det vanligaste i omdömena.</span></div>
-        <div><b>Snabb hjälp vid punktering</b><span>Ofta löst direkt, även utan bokad tid.</span></div>
-        <div><b>Kan sina däck</b><span>Montering, balansering och hjulskifte.</span></div>
-        <div><b>Rimliga priser</b><span>Och tar ansvar om något blir fel.</span></div>
-      </div>
+      <div class="opts" id="hotelOpts"></div>
+      <button class="btn ink wide" data-act="bookhotel"><span>Boka däckhotell</span></button>
     </div>
   </div></section>
 
-  <section class="sec dark" id="hitta"><div class="wrap">
-    <h2 class="d addr">Brynäs&shy;gatan 67</h2>
-    <svg class="skid" id="skid" viewBox="0 0 640 26" preserveAspectRatio="none" aria-hidden="true"><path d="M4 9 C 160 2, 330 16, 636 7" fill="none" stroke="currentColor" stroke-width="7" stroke-dasharray="700"/><path d="M4 20 C 180 13, 360 25, 636 18" fill="none" stroke="currentColor" stroke-width="3"/></svg>
-    <div class="find">
-      <div>
-        <p class="lede" style="margin-top:0">802 88 Gävle. Har du bråttom går det bra att ringa först, så vet vi att du är på väg.</p>
-        <div class="acts">
-          <a class="btn" href="https://www.google.com/maps/search/?api=1&query=NK+Bil+%26+D%C3%A4ck+Bryn%C3%A4sgatan+67+G%C3%A4vle" target="_blank" rel="noopener"><span>Visa vägen</span></a>
-          <a class="btn line" href="tel:+4626180501"><span><svg class="i"><use href="#i-tel"/></svg>Ring oss</span></a>
-        </div>
+  <section class="sec visit" id="hitta"><div class="wrap cols">
+    <div>
+      <p class="status" id="openNow"></p>
+      <h2 class="d">Brynäsgatan 67</h2>
+      <p class="lede">802 88 Gävle. Har du bråttom går det bra att ringa först, så vet vi att du är på väg.</p>
+      <a class="bigtel d" href="tel:+4626180501">026-18 05 01</a>
+      <div class="acts">
+        <a class="btn" href="https://www.google.com/maps/search/?api=1&amp;query=NK+Bil+%26+D%C3%A4ck+Bryn%C3%A4sgatan+67+G%C3%A4vle" target="_blank" rel="noopener"><span><svg class="i"><use href="#i-pin"/></svg>Visa vägen</span></a>
+        <a class="btn line" href="mailto:info@nkbilochdack.se"><span>info@nkbilochdack.se</span></a>
       </div>
-      <table class="hours" id="hours"></table>
+      <table class="hours" id="hours" aria-label="Öppettider"></table>
+    </div>
+    <div class="proof">
+      <p class="score"><b class="d">4,6</b><span>av 5 på Google<br>155 omdömen</span></p>
+      <h3>Det här skriver kunderna oftast om</h3>
+      <ul class="themes">
+        <li><b>Trevligt bemötande</b><span>Det som nämns oftast.</span></li>
+        <li><b>Snabb hjälp vid punktering</b><span>Ofta löst direkt, även utan bokad tid.</span></li>
+        <li><b>Kan sina däck</b><span>Montering, balansering och hjulskifte.</span></li>
+        <li><b>Rimliga priser</b><span>Och tar ansvar om något blir fel.</span></li>
+      </ul>
     </div>
   </div></section>
 
-  <footer class="foot"><div class="wrap">Konceptdemo för NK Bil & Däck AB. Kunder, bokningar, lager och de flesta priser är påhittade exempel.</div><button class="mega d" data-act="vadm" aria-label="Växla mellan kundsidan och Verkstaden">NK Bil & Däck</button></footer>
+  <footer class="foot"><div class="wrap">
+    <p>Förhandsvisning för NK Bil & Däck AB. Adress, telefon, öppettider, Google-betyget och priset på lyktpolering stämmer. Kunder, bokningar, lager och övriga priser är exempel.</p>
+    <button class="linkb" data-act="mine">Mina bokningar</button>
+  </div><button class="mega d" data-act="vadm" aria-label="Växla mellan kundsidan och Verkstaden">NK Bil & Däck</button></footer>
 
-  <a class="cfgcall" href="tel:+4626180501" aria-label="Ring 026-18 05 01"><svg class="i"><use href="#i-tel"/></svg></a>
   <div class="bar">
-    <a class="btn line" href="tel:+4626180501" aria-label="Ring 026-18 05 01"><span><svg class="i"><use href="#i-tel"/></svg>026-18 05 01</span></a>
+    <a class="btn line" href="tel:+4626180501" aria-label="Ring 026-18 05 01"><span><svg class="i"><use href="#i-tel"/></svg>Ring</span></a>
     <button class="btn" data-act="book" id="barMain"><span>Boka tid</span></button>
   </div>
 </div>
 
-<div id="admin" hidden>
-  <div class="abar"><div class="wrap">
-    <div><button class="plate" data-act="vadm" aria-label="Tillbaka till kundsidan">NK</button><span class="who">Verkstaden</span></div>
-    <div class="aacts"><label class="auto"><input type="checkbox" id="autoC"><span class="sw2" aria-hidden="true"></span>Autobekräfta</label><button class="btn sm line" data-act="reset"><span>Återställ</span></button></div>
-  </div></div>
-  <div class="tabs" role="tablist" id="tabs"></div>
-  <div class="amain"><div class="wrap" id="amain"></div></div>
-</div>
+<div id="admin" hidden></div>
 
 <div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" id="sheet"></div></div>
-<div class="toast" id="toast" role="status"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>/*WHEEL*/</script>
 <script>/*APP*/</script>

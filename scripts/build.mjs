@@ -28,7 +28,7 @@ export async function buildSite() {
     .replace('/*FONTS*/', () => fonts)
     .replace('/*STYLES*/', () => fs.readFileSync(r('src/styles.css'), 'utf8'))
     .replace('/*WHEEL*/', () => inline(wheel))
-    .replace('/*APP*/', () => inline(fs.readFileSync(r('src/app.js'), 'utf8')));
+    .replace('/*APP*/', () => inline(['src/engine.js', 'src/app.js', 'src/admin.js'].map((f) => fs.readFileSync(r(f), 'utf8')).join('\n')));
 
   fs.mkdirSync(r('dist'), { recursive: true });
   fs.writeFileSync(r('dist/index.html'), html);

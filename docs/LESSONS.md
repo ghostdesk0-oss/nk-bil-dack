@@ -4,6 +4,55 @@ Mistakes already made in this repo, so no one makes them twice. Newest first.
 Format: what happened, the rule, and how it is enforced (`check.mjs` rule ID, test, or "manual").
 When a manual lesson bites a second time, turn it into a check.
 
+## L-019 Swedish decimals need a text field
+**Happened:** the tread-depth field was `type="number"`; typing "2,5" (the Swedish way) was refused.
+**Rule:** decimal inputs are `type="text" inputmode="decimal"` and the code accepts comma or point.
+**Enforced:** `check.mjs` L-019 blocks `type="number"` in `src/`.
+
+## L-018 Browser-test traps that each cost a rerun
+**Happened:** `<option>` elements never count as visible, so waiting for one timed out; `innerText`
+returns CSS-uppercased text; Python's `read_text()` turned CRLF into LF; `.done` also matched the
+hub icon; stock that is generated lazily was not in the saved state; two WebGL pages on the software
+renderer starved each other, and a failed suite left its pages running into the next.
+**Rule:** wait for options with `state="attached"`; compare uppercase text case-insensitively; read
+files as bytes; scope selectors (`.sbody .done`); read lazy values through `NK.E`; suites with
+several pages use `NOGL`, and contexts are closed after every suite.
+**Enforced:** `check.mjs` L-018 for option waits; the rest by `tests/smoke.py` structure.
+
+## L-017 Check capacity before the clock for staff bookings
+**Happened:** a drop-in at a time that had just passed skipped the capacity check, because the slot
+state said "past" before it could say "full". Two busy lifts got a third car without a warning.
+**Rule:** for staff, a passed time is allowed but full lifts still need an explicit force, and the
+booking is flagged so the toast says both lifts were busy.
+**Enforced:** `tests/engine.test.mjs` ("two lifts") and the workshop suite in `tests/smoke.py`.
+
+## L-016 A live redraw must not eat what someone is typing
+**Happened:** a booking saved in another tab re-rendered the open booking sheet and wiped the name
+and phone the visitor had typed. Verkstaden had the same problem with the staff form.
+**Rule:** redraw only views that show live data; read the fields back (`grab()`, `grabModal()`)
+before any redraw, and put focus and caret back after it.
+**Enforced:** `tests/smoke.py` tabs suite types into both forms while the other tab saves.
+
+## L-015 A component class must not share a name with a root state class
+**Happened:** the job-card class `.js` matched `<html class="js">` and made the whole page a flex
+row. Verkstaden came out 714 px wide on a 390 px phone.
+**Rule:** `.js`, `.ready`, `.nogl`, `.nodemo`, `.inspect`, `.adm`, `.tw` are state prefixes only.
+**Enforced:** `check.mjs` L-015.
+
+## L-014 Internal links stay off the customer side
+**Rule:** the repository, roadmap and issue links live in Verkstaden only, never in the
+customer-facing markup or `app.js`.
+**Enforced:** `check.mjs` L-014.
+
+## L-013 Data changes go through the engine, after a fresh read
+**Happened:** the page wrote bookings straight into its own copy of the state. Two tabs could
+both book the last slot, today's passed times were bookable (a clock helper returned NaN), and
+every booking vanished at midnight.
+**Rule:** `app.js` and `admin.js` never push into `bookings`, `orders` or `cart`; they call
+`NKEngine`, which checks capacity, and they call `store.fresh()` first so the latest save wins.
+**Enforced:** `check.mjs` L-013, `tests/engine.test.mjs` (incl. a 3 000-step fuzz), and the
+two-tab suite in `tests/smoke.py`.
+
 ## L-012 New elements inherit unintended styles and grid rows
 **Happened:** an `href="#kontakt"` anchor matched the `#kontakt` ID selector (light background,
 padding) and a hero link stretched tall because the hero grid's fixed template rows ran out and
@@ -22,7 +71,7 @@ children against `grid-template-rows` when adding markup.
 **Happened:** pausing the hero wheel with an IntersectionObserver on its canvas never fired,
 because `#wheel` is `position:fixed` and always intersects the viewport.
 **Rule:** gate the render loop on the sections the fixed canvas belongs to (hero + story),
-not on the canvas element itself. Absolutely-positioned canvases like `#car` can be observed directly.
+not on the canvas element itself.
 **Enforced:** manual.
 
 ## L-009 Wait for state, not for time, in browser tests
@@ -40,7 +89,7 @@ test renderer the transition had not finished, the test failed, and the bug look
 **Happened:** the rim swap was timed on the frame clock, which is clamped to 50 ms per frame.
 On a slow device the swap stalled half-way and a wheel looked rimless.
 **Rule:** time it with `performance.now()`. Use the frame clock only for continuous motion.
-**Enforced:** `check.mjs` L-007 for the swap; manual elsewhere.
+**Enforced:** `check.mjs` L-007 for the plate scan; manual elsewhere.
 
 ## L-006 Respect reduced motion
 **Rule:** every animation has a reduced-motion path; 3D modules check `prefers-reduced-motion`.
@@ -74,7 +123,6 @@ source for either.
 ## L-000 Design for the owner's actual screen
 **Happened:** the first hero was taller than the iPhone viewport inside the Claude viewer;
 the wheel slid over the text when scrolling.
-**Rule:** test at 390x640 usable height. The hero, the configurator dock and the bottom bar
-must all fit without overlap.
-**Enforced:** `tests/smoke.py` runs at 390x760 and asserts the camera presets never overlap
-the highway button (`.ccam` vs `#hwy` bounding boxes); manual elsewhere.
+**Rule:** test at 390x640 usable height. The hero and the bottom bar must fit without overlap.
+**Enforced:** `tests/smoke.py` runs at 390x844 and audits every main screen for horizontal
+overflow and 44 px tap targets; manual for the visual fit.

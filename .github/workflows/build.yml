@@ -17,11 +17,13 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run check
+      - run: npm run test:engine
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: pip install playwright && playwright install --with-deps chromium
       - run: python3 tests/smoke.py
+        timeout-minutes: 20
       - uses: actions/upload-artifact@v4
         if: always()
         with:

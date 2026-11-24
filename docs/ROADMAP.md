@@ -8,13 +8,15 @@ Each phase ends with something he can see and use.
 The demo has to make him say yes, and make customers book.
 
 - [x] 3D tyre hero, reg-nummer scan, hotspots, scroll story
-- [x] 3D car and rim configurator with booking drawer
+- [x] ~~3D car configurator~~ dropped in the revamp (ADR 0004)
+- [x] Booking engine shared by site and workshop, unit-tested and fuzzed
 - [x] Quick quote, service cards, rating strip, hours, map, click to call
 - [x] Tyre shop with cart and fitting time
 - [x] Workshop dashboard: daily brief, lift timeline, confirm, auto-confirm
 - [ ] Real photos of the workshop, van and team (shoot day)
 - [ ] Real prices and service list from Nicklas
-- [ ] Customer page: "Mina bokningar" by phone number, reschedule and cancel
+- [x] Customer page: "Mina bokningar" by phone number, reschedule and cancel
+- [x] Calendar file after booking
 - [ ] Dashboard: drag a booking to another time or lift
 - [ ] Dashboard: day and week print view for the workshop wall
 - [ ] Test on real phones (iPhone and a mid-range Android), fix what stutters

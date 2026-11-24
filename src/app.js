@@ -1,1269 +1,552 @@
-(function(){
+/* NK Bil & Däck: the customer site. The 3D wheel glue, the price board, the tyre shop, the tyre hotel,
+   and the booking sheet (book, cart, my bookings). All data goes through NKEngine (engine.js);
+   Verkstaden (admin.js) reads and writes the same state. */
+(function () {
 'use strict';
-var $=function(s,r){return (r||document).querySelector(s)};
-var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
-var kr=function(n){return Math.round(n).toLocaleString('sv-SE').replace(/ /g,' ')+' kr'};
-var pad=function(n){return (n<10?'0':'')+n};
-var iso=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
-var D=function(s){return new Date(s+'T00:00:00')};
-var WD=['sön','mån','tis','ons','tors','fre','lör'],WDL=['söndag','måndag','tisdag','onsdag','torsdag','fredag','lördag'];
-var MON=['jan','feb','mars','april','maj','juni','juli','aug','sep','okt','nov','dec'];
-var nice=function(s){var d=D(s);return WD[d.getDay()]+' '+d.getDate()+' '+MON[d.getMonth()]};
-var ic=function(n){return '<svg class="i"><use href="#i-'+n+'"/></svg>'};
-// shop clock: always Europe/Stockholm, never the visitor's device timezone
-var TZF=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
-var WDS={sön:0,mån:1,tis:2,ons:3,tors:4,fre:5,lör:6};
-function sweNow(){var o={};TZF.formatToParts(new Date()).forEach(function(p){o[p.type]=p.value});
-  var d=new Date(+o.year,+o.month-1,+o.day);
-  return {date:o.year+'-'+o.month+'-'+o.day,day:WDS[o.weekday],hour:+o.hour,min:+o.minute,mins:+o.hour*60+ +o.minute,
-    getDay:function(){return d.getDay()},getHours:function(){return +o.hour},getMinutes:function(){return +o.min},getDate:function(){return d.getDate()},getMonth:function(){return d.getMonth()},getFullYear:function(){return d.getFullYear()}};}
-var now=sweNow(),TODAY=now.date;
+const E = window.NKEngine;
+const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = E.esc, kr = E.kr, ic = (n) => '<svg class="i"><use href="#i-' + n + '"/></svg>';
+const RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const NOW = () => E.sweNow();
 
-/* ---------- catalogue ---------- */
-var SERVICES=[
- {id:'skifte',name:'Hjulskifte',desc:'Vi skiftar till dina egna hjul, kollar lufttryck och mäter mönsterdjup.',mins:30,price:250},
- {id:'montering',name:'Montering och balansering',desc:'Nya däck på dina fälgar, balanserade och klara att rulla.',mins:60,price:600},
- {id:'punktering',name:'Punktering',desc:'Vi lagar om det går. Annars hjälper vi dig till ett nytt däck på en gång.',mins:30,price:300},
- {id:'hjulinst',name:'Hjulinställning',desc:'Rätt vinklar ger jämnt slitage och en bil som går rakt.',mins:60,price:1195},
- {id:'hotell',name:'Däckhotell',desc:'Förvaring en säsong, med skifte vår eller höst.',mins:30,price:895,unit:'per säsong'},
- {id:'lyktor',name:'Lyktpolering',desc:'Våtslip och polering av strålkastarna. Bättre sikt i mörkret.',mins:60,price:1500},
- {id:'ac',name:'AC-service',desc:'Påfyllning och kontroll så att kylan och avfuktningen fungerar.',mins:60,price:995},
- {id:'olja',name:'Oljebyte',desc:'Ny olja och nytt filter, anpassat efter din motor.',mins:60,price:1295,from:true},
- {id:'nyadack',name:'Nya däck och fälgar',desc:'Vi tar fram däck och fälgar som passar bilen och ger dig ett pris innan du bestämmer dig.',mins:60,price:null},
- {id:'verkstad',name:'Service och reparation',desc:'Service, felsökning och reparationer. Berätta vad det gäller så får du ett pris innan vi börjar.',mins:120,price:null}
-];
-var svc=function(id){return SERVICES.filter(function(s){return s.id===id})[0]};
-var pTxt=function(s){return s.price?(s.from?'från ':'')+kr(s.price):'Offert'};
-var WS=[185,195,205,215,225,235],PS=[40,45,50,55,60,65],RS=[15,16,17,18];
-var TYPES=[['sommar','Sommar'],['friktion','Dubbfritt'],['dubb','Dubbat']];
-var typeName=function(t){return TYPES.filter(function(x){return x[0]===t})[0][1]};
-var PRODUCTS=[
- {id:'p1',brand:'Kumho',model:'WinterCraft Ice Wi32',type:'dubb',base:1095},
- {id:'p2',brand:'Vredestein',model:'Wintrac Ice',type:'dubb',base:1345},
- {id:'p3',brand:'Kumho',model:'WinterCraft Ice Wi52',type:'friktion',base:1045},
- {id:'p4',brand:'Vredestein',model:'Wintrac Pro',type:'friktion',base:1395},
- {id:'p5',brand:'Kumho',model:'Ecsta HS52',type:'sommar',base:945},
- {id:'p6',brand:'Kumho',model:'Ecowing ES31',type:'sommar',base:845},
- {id:'p7',brand:'Vredestein',model:'Ultrac',type:'sommar',base:1195}
-];
-var prod=function(id){return PRODUCTS.filter(function(p){return p.id===id})[0]};
-var price=function(p,dim){var m=dim.match(/(\d+)\/\d+ R(\d+)/);return Math.round(p.base*(1+(+m[2]-16)*.11+(+m[1]-205)*.004)/5)*5};
-var stockOf=function(k){if(S.stock[k]==null){var h=0;for(var i=0;i<k.length;i++)h=(h*31+k.charCodeAt(i))%97;S.stock[k]=[12,8,4,16,0,20,6,8][h%8]}return S.stock[k]};
-var FIT=600;
+/* ---------- state: one saved object shared by the site, Verkstaden and every open tab ---------- */
+let S = null;
+const read = () => { try { return localStorage.getItem(E.KEY); } catch (e) { return null; } };
+const store = {
+  load() { S = E.restore(read(), NOW()); store.save(); },
+  save() { try { localStorage.setItem(E.KEY, JSON.stringify(S)); } catch (e) { /* private mode: the demo still works for this page view */ } },
+  // re-read before every change, so a booking made in another tab is never overwritten
+  fresh() { const raw = read(); if (raw) S = E.restore(raw, NOW()); }
+};
+['nk-demo-v5', 'nk-verkstad-os-v1', 'nk-verkstad-tour-v1'].forEach((k) => { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } });
+store.load();
+const me = { get() { try { return JSON.parse(localStorage.getItem('nk-me')) || {}; } catch (e) { return {}; } }, set(v) { try { localStorage.setItem('nk-me', JSON.stringify(v)); } catch (e) { /* ignore */ } } };
 
-/* ---------- time ---------- */
-var closeHour=function(dateIso){return D(dateIso).getDay()===5?16:17};
-var isOpenDay=function(d){var g=d.getDay();return g>0&&g<6};
-var workdays=function(n){var out=[],d=D(TODAY);while(out.length<n){if(isOpenDay(d))out.push(iso(d));d.setDate(d.getDate()+1)}return out};
-var toMin=function(t){return +t.slice(0,2)*60+ +t.slice(3)};
-var toT=function(m){return pad(Math.floor(m/60))+':'+pad(m%60)};
-var daySlots=function(dateIso){var o=[];for(var m=420;m<closeHour(dateIso)*60;m+=30)o.push(toT(m));return o};
-var load=function(dateIso){var c={};S.bookings.forEach(function(b){if(b.date!==dateIso)return;for(var m=toMin(b.time);m<toMin(b.time)+b.mins;m+=30)c[toT(m)]=(c[toT(m)]||0)+1});return c};
-var slotFree=function(dateIso,t,mins,c){var s=toMin(t);if(s+mins>closeHour(dateIso)*60)return false;
-  if(dateIso===TODAY&&s<=now.getHours()*60+now.getMinutes())return false;
-  for(var m=s;m<s+mins;m+=30)if((c[toT(m)]||0)>=2)return false;return true};
+let tT = 0;
+function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.remove('on'); void t.offsetWidth; t.classList.add('on'); clearTimeout(tT); tT = setTimeout(() => t.classList.remove('on'), 3200); }
+function vt(fn) { if (document.startViewTransition && !RM) { try { const t = document.startViewTransition(fn), no = () => {}; t.ready.catch(no); t.finished.catch(no); t.updateCallbackDone.catch(no); return; } catch (e) { /* fall through */ } } fn(); }
 
-/* ---------- state ---------- */
-var KEY='nk-demo-v5',S;
-var QS=[['Däckskifte','skifte'],['Däckhotell','hotell'],['Nya däck och fälgar','nyadack'],['Bilservice','verkstad']];
-function seed(){
-  var r=20261112;var rnd=function(){r=(r*1103515245+12345)&0x7fffffff;return r/0x7fffffff};
-  var names=['Exempel Andersson','Exempel Bergström','Exempel Carlsson','Exempel Dahl','Exempel Eriksson','Exempel Forsberg','Exempel Gustavsson','Exempel Holm','Exempel Isaksson','Exempel Jonsson','Exempel Karlberg','Exempel Lindh'];
-  var cars=['Volvo V60','Volkswagen Golf','Toyota RAV4','Kia Ceed','Volvo XC60','Skoda Octavia','Tesla Model 3','Saab 9-3','Audi A4','Ford Transit','Volvo V70','Volkswagen Caddy'];
-  var L='ABCDEFGHJKLMNPRSTUWXYZ';
-  var customers=names.map(function(n,i){
-    var reg=L[(i*5)%22]+L[(i*3+7)%22]+L[(i*11+2)%22]+' '+pad((10+i*7)%100)+L[(i*2+4)%22];
-    return {id:'c'+(i+1),name:n,phone:'070-174 06 '+pad(10+i),since:2012+i%13,cars:[{reg:reg,model:cars[i]}],
-      hotel:i%3===0?null:{pos:'ABC'[i%3]+' '+(4+i*3),tyres:i%2?'Sommarhjul':'Vinterhjul',depth:(3.5+((i*7)%40)/10).toFixed(1)}};
-  });
-  S={customers:customers,bookings:[],orders:[],stock:{},cart:[],seq:2412,oseq:1088};
-  var days=workdays(6),nowM=now.getHours()*60+now.getMinutes();
-  days.forEach(function(day,di){
-    var n=di===0?7:4+Math.floor(rnd()*3);
-    for(var k=0;k<n;k++){
-      var c=customers[Math.floor(rnd()*customers.length)],s=SERVICES[Math.floor(rnd()*SERVICES.length)];
-      var sl=daySlots(day),t=sl[Math.floor(rnd()*sl.length)],cnt=load(day),ok=true,m;
-      if(toMin(t)+s.mins>closeHour(day)*60)continue;
-      for(m=toMin(t);m<toMin(t)+s.mins;m+=30)if((cnt[toT(m)]||0)>=2)ok=false;
-      if(!ok)continue;
-      var st='Bekräftad';
-      if(day===TODAY){st=toMin(t)+s.mins<=nowM?'Klar':(toMin(t)<=nowM?'Pågår':'Bekräftad')}
-      else if(rnd()<.2)st='Ny';
-      S.bookings.push({id:'NK-'+(S.seq++),custId:c.id,reg:c.cars[0].reg,model:c.cars[0].model,svc:s.id,mins:s.mins,date:day,time:t,status:st,note:'',src:'Telefon'});
+/* ---------- 3D wheel: the page decides where it is (pose), wheel.js eases toward it ---------- */
+let wheel = null, G = {}, FOCUS = null, SCAN = null, SEASON = 'friktion', REG = '', typing = 0, typeY = 0;
+const onScroll = [];
+const clamp = (x) => (x < 0 ? 0 : x > 1 ? 1 : x), smooth = (x) => { x = clamp(x); return x * x * (3 - 2 * x); }, mix = (a, b, t) => a + (b - a) * t;
+function measure() {
+  const dm = document.documentElement.classList.contains('nodemo') ? 0 : $('.demo').offsetHeight;
+  document.documentElement.style.setProperty('--demo-h', dm + 'px');
+  const st = $('.stage').getBoundingClientRect(), sy = window.scrollY, story = $('#story'), pin = $('.pin');
+  G = { dm, sTop: st.top + sy, sH: st.height, sL: st.left, sW: st.width, S0: story.offsetTop - dm, L: Math.max(1, story.offsetHeight - pin.offsetHeight), pinH: pin.offsetHeight };
+}
+function prog() { const y = window.scrollY; return { q: smooth((y - G.S0 * 0.12) / (G.S0 * 0.88)), p: clamp((y - G.S0) / G.L), y }; }
+const FOC = { tread: { yaw: -1.28, s: 1.3, dx: 0.16, dy: 0, cam: 0.1 }, sidewall: { yaw: -0.36, s: 1.5, dx: 0, dy: 0.42, cam: 0.04 }, rim: { yaw: -0.22, s: 1.28, dx: 0, dy: 0.03, cam: 0.1 } };
+function pose() {
+  if ($('#site').hidden) return null;
+  const vw = window.innerWidth, m = vw < 900, g = prog(), p = g.p, q = g.q;
+  if (g.y > G.S0 + G.L + window.innerHeight) return null;
+  let hx = m ? vw * 0.6 : G.sL + G.sW * 0.5, hy = G.sTop + G.sH * 0.46 - g.y, hd = m ? Math.min(G.sH * 0.98, vw * 0.78) : Math.min(G.sH * 0.72, G.sW * 0.8);
+  if (vw <= 520) { hx = vw * 0.5; hd = Math.min(hd, vw * 0.66); }
+  if (m && (FOCUS || SCAN === 'done') && q < 0.25) { const ch = ($('#gcard').offsetHeight || 220) + 96, ah = window.innerHeight - G.dm - ch; hx = vw * 0.5; hy = G.dm + ah * 0.52; hd = Math.min(vw * 0.74, ah * 0.8); }
+  if (FOCUS && q < 0.25) { const fo = FOC[FOCUS]; return { active: true, lock: true, x: hx + hd * fo.dx, y: hy + hd * fo.dy, d: hd * fo.s, yaw: fo.yaw, pitch: 0, cam: fo.cam, floor: 1, temp: 0, snow: 0, spin: 0.06, e: 0, f: 1 }; }
+  if (SCAN && q < 0.25) return { active: true, lock: true, x: hx, y: hy, d: hd * (SCAN === 'done' ? 0.92 : 1.04), yaw: -1.08, pitch: 0, cam: 0.15, floor: 1, temp: 0, snow: 0, spin: 0.25, e: 0, f: 1 };
+  const sx = m ? vw * 0.5 : vw * 0.66, sy = G.dm + G.pinH * (m ? 0.33 : 0.5), sd0 = m ? Math.min(vw * 0.6, G.pinH * 0.3) : G.pinH * 0.44;
+  const e = smooth((p - 0.37) / 0.1) * (1 - smooth((p - 0.93) / 0.07)) * (q > 0.98 ? 1 : 0), f = 1 + smooth((p - 0.65) / 0.07);
+  const sd = sd0 * (1 + 0.4 * clamp(f - 1) * (1 - smooth((p - 0.93) / 0.07)));
+  const c = 1 - smooth((p - 0.27) / 0.1), cx = m ? vw * 0.5 : vw * 0.66, cy = G.dm + G.pinH * (m ? 0.34 : 0.5), cd = G.pinH * (m ? 1.85 : 2.1);
+  const win = SEASON === 'sommar' ? 0 : SEASON === 'dubb' ? 1 : 0.5, tS = mix(0.45, SEASON === 'sommar' ? 0.1 : SEASON === 'dubb' ? 1 : 0.82, c);
+  if (typing && m) return { active: true, x: vw * 0.5, y: typeY, d: Math.min(190, vw * 0.5), yaw: -0.25, pitch: 0.1, e: 0, f: 1, spin: 0.5, floor: 0, temp: 0.45 };
+  return { active: true, x: mix(hx, mix(sx, cx, c), q), y: mix(hy, mix(sy, cy, c), q), d: mix(hd, mix(sd, cd, c), q),
+    yaw: mix(-0.62, mix(m ? 0.35 : mix(0.95, 0.8, clamp(f - 1)), -1.5, c), q), pitch: mix(0, mix(m ? -0.95 : 0.14, 0, c), q), e, f,
+    spin: mix(0.3, mix(0.12, 0.2, c), q), temp: tS * q, snow: q * c * win, floor: 1 - smooth(q / 0.45), cam: 0.15 * (1 - q) };
+}
+/* hotspots and spec badges follow points on the wheel */
+const HS = $$('.hs'), BG = $$('.badge'); let BADGES = false, hotOn = false; const bornAt = performance.now();
+function hotLoop() {
+  if (hotOn || !wheel) return; hotOn = true;
+  (function run() {
+    const y = window.scrollY, near = y < G.S0 * 0.5 && !$('#site').hidden && !W;
+    const show = near && y < 30 && !FOCUS && !SCAN && performance.now() - bornAt > 2600;
+    for (let i = 0; i < 3; i++) {
+      const nm = HS[i].dataset.v, pt = near ? wheel.project(nm) : null, on = !!(show && pt);
+      HS[i].classList.toggle('on', on);
+      if (on) { HS[i].removeAttribute('inert'); HS[i].removeAttribute('tabindex'); } else { HS[i].setAttribute('inert', ''); HS[i].setAttribute('tabindex', '-1'); }
+      if (pt) {
+        const cx = Math.max(28, Math.min(window.innerWidth - 28, pt.x)), cy = Math.max(G.dm + 34, Math.min(window.innerHeight - 116, pt.y));
+        HS[i].style.transform = 'translate3d(' + cx.toFixed(1) + 'px,' + cy.toFixed(1) + 'px,0)';
+        const off = nm === 'tread' ? [-18, -44] : nm === 'sidewall' ? [14, -40] : [18, 6];
+        const bx = Math.max(8, Math.min(window.innerWidth - BG[i].offsetWidth - 8, cx + off[0] - (nm === 'tread' ? BG[i].offsetWidth * 0.5 : 0)));
+        const by = Math.max(G.dm + 8, Math.min(window.innerHeight - BG[i].offsetHeight - 96, cy + off[1]));
+        BG[i].style.transform = 'translate3d(' + bx.toFixed(1) + 'px,' + by.toFixed(1) + 'px,0)';
+      }
+      BG[i].classList.toggle('on', !!(BADGES && near && pt && y < 30));
     }
-  });
-  var d1='205/55 R16',d2='225/45 R17';
-  S.orders.push({id:'W-'+(S.oseq++),custId:'c4',date:TODAY,items:[{pid:'p1',dim:d1,qty:4}],fit:true,total:4*price(prod('p1'),d1)+FIT,status:'Väntar på montering'});
-  S.orders.push({id:'W-'+(S.oseq++),custId:'c9',date:TODAY,items:[{pid:'p4',dim:d2,qty:4}],fit:false,total:4*price(prod('p4'),d2),status:'Klar att hämta'});
-}
-function save(){try{localStorage.setItem(KEY,JSON.stringify({d:TODAY,S:S}))}catch(e){}}
-function init(){try{var j=JSON.parse(localStorage.getItem(KEY));if(j&&j.d===TODAY&&j.S){S=j.S;return}}catch(e){}seed()}
-init();
-// keep open tabs in sync: a booking made in one tab shows up in Verkstaden in the other
-window.addEventListener('storage',function(e){if(e.key!==KEY||!e.newValue)return;
-  try{var j=JSON.parse(e.newValue);if(j&&j.d===TODAY&&j.S){S=j.S;if(!$('#admin').hidden)renderAdmin();renderTyres();setCart()}}catch(x){}});
-try{if(sessionStorage.getItem('nk-demox'))document.querySelector('.demo').classList.add('off')}catch(e){}
-var cust=function(id){return S.customers.filter(function(c){return c.id===id})[0]};
-
-/* ---------- 3D wheel ---------- */
-var wheel=null,G={},onScrollFns=[];
-var clamp=function(x){return x<0?0:x>1?1:x},smooth=function(x){x=clamp(x);return x*x*(3-2*x)},mix=function(a,b,t){return a+(b-a)*t};
-function measure(){
-  var dm=document.querySelector('.demo').offsetHeight;document.documentElement.style.setProperty('--demo-h',dm+'px');
-  var st=document.querySelector('.stage').getBoundingClientRect(),sy=window.scrollY,story=$('#story'),pin=document.querySelector('.pin');
-  G={dm:dm,sTop:st.top+sy,sH:st.height,sL:st.left,sW:st.width,S0:story.offsetTop-dm,L:Math.max(1,story.offsetHeight-pin.offsetHeight),pinH:pin.offsetHeight};
-}
-function prog(){var y=window.scrollY;return {q:smooth((y-G.S0*.12)/(G.S0*.88)),p:clamp((y-G.S0)/G.L),y:y}}
-var FOC={tread:{yaw:-1.28,s:1.3,dx:.16,dy:0,cam:.1},sidewall:{yaw:-.36,s:1.5,dx:0,dy:.42,cam:.04},rim:{yaw:-.22,s:1.28,dx:0,dy:.03,cam:.1}};
-function pose(){
-  if($('#site').hidden)return null;
-  var vw=window.innerWidth,m=vw<900,g=prog(),p=g.p,q=g.q;
-  if(g.y>G.S0+G.L+window.innerHeight)return null;
-  var hx=m?vw*.6:G.sL+G.sW*.5,hy=G.sTop+G.sH*(m?.46:.46)-g.y,hd=m?Math.min(G.sH*.98,vw*.78):Math.min(G.sH*.72,G.sW*.8);
-  if(vw<=520){hx=vw*.5;hd=Math.min(hd,vw*.64)} // narrow phones: centre the wheel, cap the diameter
-  if(m&&(FOCUS||SCAN==='done')&&q<.25){var ch=($('#gcard').offsetHeight||210)+96,ah=window.innerHeight-G.dm-ch;hx=vw*.5;hy=G.dm+ah*.52;hd=Math.min(vw*.74,ah*.8)}
-  if(FOCUS&&q<.25){var fo=FOC[FOCUS];return {active:true,lock:true,x:hx+hd*fo.dx,y:hy+hd*fo.dy,d:hd*fo.s,yaw:fo.yaw,pitch:0,cam:fo.cam,floor:1,temp:0,snow:0,spin:.06,e:0,f:1}}
-  if(SCAN&&q<.25)return {active:true,lock:true,x:hx,y:hy,d:hd*(SCAN==='done'?.92:1.04),yaw:-1.08,pitch:0,cam:.15,floor:1,temp:0,snow:0,spin:.25,e:0,f:1};
-  var sx=m?vw*.5:vw*.66,sy=G.dm+G.pinH*(m?.33:.5),sd=m?Math.min(vw*.6,G.pinH*.3):G.pinH*.44;
-  var e=smooth((p-.37)/.1)*(1-smooth((p-.93)/.07))*(q>.98?1:0),f=1+smooth((p-.65)/.07);
-  sd*=1+.4*clamp(f-1)*(1-smooth((p-.93)/.07));
-  var c=1-smooth((p-.27)/.1),cx=m?vw*.5:vw*.66,cy=G.dm+G.pinH*(m?.34:.5),cd=G.pinH*(m?1.85:2.1);
-  var win=SEASON==='sommar'?0:SEASON==='dubb'?1:.5,tS=mix(.45,SEASON==='sommar'?.1:SEASON==='dubb'?1:.82,c);
-  if(typing&&m)return {active:true,x:vw*.5,y:typeY,d:Math.min(190,vw*.5),yaw:-.25,pitch:.1,e:0,f:1,spin:.5,floor:0,temp:.45};
-  return {active:true,x:mix(hx,mix(sx,cx,c),q),y:mix(hy,mix(sy,cy,c),q),d:mix(hd,mix(sd,cd,c),q),
-    yaw:mix(-.62,mix(m?.35:mix(.95,.8,clamp(f-1)),-1.5,c),q),pitch:mix(0,mix(m?-.95:.14,0,c),q),e:e,f:f,
-    spin:mix(.3,mix(.12,.2,c),q),temp:tS*q,snow:q*c*win,floor:1-smooth(q/.45),cam:.15*(1-q)};
-}
-/* hotspots and spec badges follow points on the 3D wheel */
-var HS=[].slice.call(document.querySelectorAll('.hs')),BG=[].slice.call(document.querySelectorAll('.badge')),BADGES=false,hotOn=false,bornAt=performance.now();
-function hotLoop(){
-  if(hotOn||!wheel)return;hotOn=true;
-  (function run(){
-    var y=window.scrollY,near=y<G.S0*.5&&!$('#site').hidden;
-    var show=near&&y<30&&!FOCUS&&!SCAN&&performance.now()-bornAt>2600;
-    for(var i=0;i<3;i++){var nm=HS[i].dataset.v,pt=near?wheel.project(nm):null;
-      var hsOn=!!(show&&pt);HS[i].classList.toggle('on',hsOn);
-      if(hsOn){HS[i].removeAttribute('inert');HS[i].removeAttribute('tabindex')}else{HS[i].setAttribute('inert','');HS[i].setAttribute('tabindex','-1')}
-      if(pt){
-        // keep the callout dots and their badges inside the viewport on narrow phones
-        var cx=Math.max(28,Math.min(window.innerWidth-28,pt.x)),cy=Math.max(G.dm+34,Math.min(window.innerHeight-116,pt.y));
-        HS[i].style.transform='translate3d('+cx.toFixed(1)+'px,'+cy.toFixed(1)+'px,0)';
-        var off=nm==='tread'?[-18,-44]:nm==='sidewall'?[14,-40]:[18,6],bx=Math.max(8,Math.min(window.innerWidth-BG[i].offsetWidth-8,cx+off[0]-(nm==='tread'?BG[i].offsetWidth*.5:0)));
-        var by=Math.max(G.dm+8,Math.min(window.innerHeight-BG[i].offsetHeight-96,cy+off[1]));
-        BG[i].style.transform='translate3d('+bx.toFixed(1)+'px,'+by.toFixed(1)+'px,0)'}
-      BG[i].classList.toggle('on',!!(BADGES&&near&&pt&&y<30))}
-    if(near)requestAnimationFrame(run);else{hotOn=false;HS.forEach(function(h){h.classList.remove('on');h.setAttribute('inert','');h.setAttribute('tabindex','-1')});BG.forEach(function(b){b.classList.remove('on')})}
+    if (near) requestAnimationFrame(run);
+    else { hotOn = false; HS.forEach((h) => { h.classList.remove('on'); h.setAttribute('inert', ''); h.setAttribute('tabindex', '-1'); }); BG.forEach((b) => b.classList.remove('on')); }
   })();
 }
-onScrollFns.push(function(){if(window.scrollY>40&&(FOCUS||SCAN))closeCard();if(!hotOn&&window.scrollY<10)hotLoop()});
-var HOT={tread:['Däckbyte','Vi skiftar hjulen, kollar lufttrycket och mäter mönsterdjupet medan du tar en kaffe.','skifte'],
-  sidewall:['Balansering','Nya däck monteras och balanseras så att ratten ligger still i alla farter.','montering'],
-  rim:['Däckhotell','Vi förvarar dina hjul över säsongen och säger till när det är dags att byta.','hotell']};
-function card(html){if(wheel)document.body.classList.add('inspect');var g=$('#gcard');g.hidden=false;g.innerHTML=html.replace('<h3 class="d">','<h3 class="d" id="gcardTitle">')+'<button class="x" data-act="cardx" aria-label="Stäng">'+ic('x')+'</button>';g.classList.add('on')}
-function closeCard(){FOCUS=null;SCAN=null;BADGES=false;document.body.classList.remove('inspect');var g=$('#gcard');g.classList.remove('on');g.hidden=true}
-function openHot(v){var h=HOT[v],sv2=svc(h[2]);FOCUS=v;SCAN=null;BADGES=false;
-  card('<h3 class="d">'+h[0]+'</h3><p>'+h[1]+'</p><p class="pricetag">'+pTxt(sv2)+(sv2.unit?' '+sv2.unit:'')+(sv2.id==='lyktor'?'':', exempelpris')+'</p><div class="acts"><button class="btn sm" data-act="book" data-svc="'+h[2]+'"><span>Boka '+h[0].toLowerCase()+'</span></button></div>')}
-/* reg-nummer: laser scan, then badges and a result card */
-var DL=[[205,55,16],[195,65,15],[225,45,17],[215,55,17],[215,60,16],[225,50,17],[235,45,18]];
-function nextFree(mins){var ds=workdays(10);for(var i=0;i<ds.length;i++){var c=load(ds[i]),sl=daySlots(ds[i]);for(var j=0;j<sl.length;j++)if(slotFree(ds[i],sl[j],mins,c))return [ds[i],sl[j]]}return null}
-function runScan(){
-  var inp=$('#heroReg'),raw=inp.value.toUpperCase().replace(/[^A-Z0-9ÅÄÖ]/g,''),pl=$('#regPlate');
-  if(raw.length<5){pl.classList.remove('bad');void pl.offsetWidth;pl.classList.add('bad');inp.focus();return}
-  REG=raw.replace(/^(.{3})/,'$1 ');inp.value=REG;inp.blur();closeCard();
-  var h=0;for(var i=0;i<raw.length;i++)h=(h*31+raw.charCodeAt(i))%9973;var d=DL[h%DL.length];
-  var done=function(){
-    pl.classList.remove('scanning');F.w=d[0];F.p=d[1];F.r=d[2];renderSize();renderTyres();
-    var dim=dimStr(),n=PRODUCTS.filter(function(p){return p.type===F.type&&stockOf(p.id+'|'+dim)>=4}).length,nf=nextFree(30);
-    BG[0].firstChild.innerHTML='Dimension <b>'+dim+'</b>';BG[1].firstChild.innerHTML='I lager <b>'+n+' '+(n===1?'modell':'modeller')+'</b>';BG[2].firstChild.innerHTML='Nästa tid <b>'+(nf?nice(nf[0])+' '+nf[1]:'ring oss')+'</b>';
-    BADGES=true;SCAN='done';hotLoop();
-    card('<h3 class="d">'+esc(REG)+'</h3><p>Vi föreslår '+dim+'. I demon är dimensionen ett exempel, i skarp drift hämtas den från regnumret.</p><div class="acts"><button class="btn sm" data-act="scanbook"><span>Boka däckbyte</span></button><a class="btn sm line" href="#dack" data-act="cardx"><span>Se däcken</span></a></div>');
+onScroll.push(() => { if (window.scrollY > 40 && (FOCUS || SCAN)) closeCard(); if (!hotOn && window.scrollY < 10) hotLoop(); });
+function card(html) { if (wheel) document.body.classList.add('inspect'); const g = $('#gcard'); g.hidden = false; g.innerHTML = html + '<button class="x" data-act="cardx" aria-label="Stäng">' + ic('x') + '</button>'; requestAnimationFrame(() => g.classList.add('on')); }
+function closeCard() { FOCUS = null; SCAN = null; BADGES = false; document.body.classList.remove('inspect'); const g = $('#gcard'); g.classList.remove('on'); g.hidden = true; }
+const HOT = { tread: ['Hjulskifte', 'Vi skiftar till dina egna hjul, kollar lufttrycket och mäter mönsterdjupet.', 'skifte'],
+  sidewall: ['Montering och balansering', 'Nya däck på dina fälgar, balanserade så att ratten ligger still i alla farter.', 'montering'],
+  rim: ['Däckhotell', 'Vi förvarar dina hjul över säsongen och säger till när det är dags att byta.', 'hotell'] };
+function openHot(v) {
+  const h = HOT[v], sv = E.svc(h[2]), nf = E.nextFree(S, sv.mins, NOW());
+  FOCUS = v; SCAN = null; BADGES = false;
+  card('<h3 class="d" id="gcardTitle">' + h[0] + '</h3><p>' + h[1] + '</p><dl class="facts"><dt>Pris</dt><dd>' + E.pTxt(sv) + (sv.unit ? ' ' + sv.unit : '') + ', exempel</dd><dt>Första lediga</dt><dd>' + (nf ? E.when(nf.date, nf.time, NOW()) : 'ring oss') + '</dd></dl>' +
+    '<div class="acts"><button class="btn sm" data-act="book" data-svc="' + sv.id + '"' + (nf ? ' data-date="' + nf.date + '" data-time="' + nf.time + '"' : '') + '><span>Boka ' + sv.name.toLowerCase() + '</span></button></div>');
+}
+/* registration number: laser scan, spec badges, then a result card that books in one tap */
+function runScan() {
+  const inp = $('#heroReg'), pl = $('#regPlate'), r = E.normReg(inp.value), err = $('#heroErr');
+  if (!r.ok) { err.textContent = E.MSG.reg; pl.classList.remove('bad'); void pl.offsetWidth; pl.classList.add('bad'); inp.focus(); return; }
+  err.textContent = ''; REG = r.reg; inp.value = REG; inp.blur(); closeCard();
+  const d = E.dimForReg(REG);
+  const done = () => {
+    pl.classList.remove('scanning');
+    F.w = d[0]; F.p = d[1]; F.r = d[2]; renderSize(); renderTyres();
+    const dim = dimStr(), n = E.PRODUCTS.filter((p) => p.type === SEASON && E.stockOf(S, p.id + '|' + dim) >= 4).length, nf = E.nextFree(S, 30, NOW());
+    const note = $('#sizeNote'); note.innerHTML = 'Förifyllt från <b>' + esc(REG) + '</b>. Dimensionen är ett exempel i förhandsvisningen.'; note.hidden = false;
+    if ($('#fReg') && W) $('#fReg').value = REG;
+    BG[0].firstChild.innerHTML = 'Dimension <b>' + dim + '</b>'; BG[1].firstChild.innerHTML = 'I lager <b>' + n + ' ' + (n === 1 ? 'modell' : 'modeller') + '</b>';
+    BG[2].firstChild.innerHTML = 'Första lediga <b>' + (nf ? E.when(nf.date, nf.time, NOW()) : 'ring oss') + '</b>';
+    BADGES = true; SCAN = 'done'; hotLoop();
+    card('<h3 class="d" id="gcardTitle">' + esc(REG) + '</h3><dl class="facts"><dt>Däck</dt><dd>' + dim + '</dd><dt>Hjulskifte</dt><dd>' + (nf ? E.when(nf.date, nf.time, NOW()) : 'ring oss på 026-18 05 01') + '</dd></dl>' +
+      '<p>I förhandsvisningen är dimensionen ett exempel. Skarpt hämtas den från fordonsregistret.</p>' +
+      '<div class="acts">' + (nf ? '<button class="btn sm" data-act="book" data-svc="skifte" data-date="' + nf.date + '" data-time="' + nf.time + '"><span>Boka hjulskifte ' + E.when(nf.date, nf.time, NOW()) + '</span></button>' : '') +
+      '<a class="btn sm line" href="#dack" data-act="cardx"><span>Se däck i ' + dim + '</span></a></div>');
   };
-  if(!wheel||RM){done();return}
-  SCAN='run';pl.classList.remove('scanning');void pl.offsetWidth;pl.classList.add('scanning');window.scrollTo({top:0,behavior:'smooth'});wheel.scan(done);
+  if (!wheel || RM) { done(); return; }
+  SCAN = 'run'; pl.classList.remove('scanning'); void pl.offsetWidth; pl.classList.add('scanning'); window.scrollTo({ top: 0, behavior: 'smooth' }); wheel.scan(done);
 }
-$('#plateform').addEventListener('submit',function(e){e.preventDefault();runScan()});
-var CAPS=[].slice.call(document.querySelectorAll('.cap')),GH=[].slice.call(document.querySelectorAll('.ghost span')),TK=[].slice.call(document.querySelectorAll('.ticks i')),typing=0,typeY=0;
-function storyUI(){
-  var g=prog(),on=g.q>.9&&g.p<.999,i=g.p<.32?0:g.p<.66?1:2,cuts=[.02,.32,.66,.96];
-  CAPS.forEach(function(c,k){c.classList.toggle('on',on&&k===i)});
-  GH.forEach(function(c,k){c.classList.toggle('on',on&&k===i&&g.p>.03)});
-  TK.forEach(function(c,k){c.style.setProperty('--v',clamp((g.p-cuts[k])/(cuts[k+1]-cuts[k])).toFixed(3))});
-}
-function startWheel(){
-  measure();
-  try{wheel=window.NKWheel&&window.NKWheel.mount($('#wheel'),{pose:pose,season:SEASON})}catch(e){wheel=null}
-  if(!wheel){document.documentElement.classList.add('nogl');return}
-  wheel.bindDrag($('#dragHero'));wheel.bindDrag($('#dragStory'));
-  // pause the wheel's render loop when neither the hero nor the pinned story is near the viewport
-  if('IntersectionObserver' in window&&wheel.setVisible){
-    var cvis={hero:true,story:true};
-    var cio=new IntersectionObserver(function(es){es.forEach(function(en){cvis[en.target.id==='story'?'story':'hero']=en.isIntersecting});if(wheel)wheel.setVisible(cvis.hero||cvis.story)},{rootMargin:'150px 0px'});
-    cio.observe(document.querySelector('.hero'));cio.observe($('#story'));
-  }
-  var dh=$('#dragHero'),revOff=function(){revving=false;wheel.rev(false);humStop()};
-  dh.addEventListener('pointerdown',function(){revving=true;wheel.rev(true);humStart();if(navigator.vibrate)try{navigator.vibrate(25)}catch(x){}smokeLoop()});dh.addEventListener('pointerup',revOff);dh.addEventListener('pointercancel',revOff);dh.addEventListener('pointerleave',revOff);
-  ['dragHero','dragStory'].forEach(function(id){$('#'+id).addEventListener('pointerdown',function(){$('#hint').classList.add('gone');var sh=document.querySelector('.scrollhint');if(sh)sh.classList.add('gone')},{once:true})});
-  onScrollFns.push(function(){var sh=document.querySelector('.scrollhint');if(sh)sh.classList.toggle('gone',window.scrollY>60)});
-  var tt=$('#tyreText'),pin=document.querySelector('.pin');
-  tt.addEventListener('focus',function(){if(window.innerWidth>=900)return;pin.classList.add('typing');document.documentElement.classList.add('tw');requestAnimationFrame(function(){var r=CAPS[1].getBoundingClientRect();typeY=r.bottom+112;typing=1})});
-  var tyT;tt.addEventListener('blur',function(){clearTimeout(tyT);tyT=setTimeout(function(){if(document.activeElement===tt)return;typing=0;pin.classList.remove('typing');document.documentElement.classList.remove('tw')},320)});
-  tt.addEventListener('keydown',function(e){if(e.key==='Enter')tt.blur()});
-  onScrollFns.push(storyUI);hotLoop();
-  window.addEventListener('resize',function(){measure();storyUI()});storyUI();
-}
-if(document.fonts&&document.fonts.load){Promise.all([document.fonts.load('italic 900 64px Archivo'),document.fonts.load('700 40px Archivo')]).then(startWheel,startWheel)}else startWheel();
+$('#plateform').addEventListener('submit', (e) => { e.preventDefault(); runScan(); });
+$('#heroReg').addEventListener('input', () => { $('#heroErr').textContent = ''; });
 
-/* ---------- customer site ---------- */
-var F={w:205,p:55,r:16,type:'friktion'},openSvc=null,SEASON='friktion',REG='',FOCUS=null,SCAN=null;
-var dimStr=function(){return F.w+'/'+F.p+' R'+F.r};
-function renderServices(){
-  $('#services').innerHTML=SERVICES.map(function(s){
-    var o=openSvc===s.id;
-    return '<div class="svc-row'+(o?' open':'')+'"><button class="svc-head" data-act="svc" data-v="'+s.id+'" aria-expanded="'+o+'"><span class="n">'+s.name+'</span><span class="p">'+pTxt(s)+'</span><span class="plus" aria-hidden="true"></span></button>'+
-      '<div class="svc-body"><div><div class="svc-in"><p>'+s.desc+' Tar cirka '+s.mins+' minuter.'+(s.unit?' Priset gäller '+s.unit+'.':'')+'</p><button class="btn sm ink" data-act="book" data-svc="'+s.id+'" '+(o?'':'tabindex="-1"')+'><span>Boka '+s.name.toLowerCase()+'</span></button></div></div></div></div>';
+const CAPS = $$('.cap'), GH = $$('.ghost span'), TK = $$('.ticks i');
+function storyUI() {
+  const g = prog(), on = g.q > 0.9 && g.p < 0.999, i = g.p < 0.32 ? 0 : g.p < 0.66 ? 1 : 2, cuts = [0.02, 0.32, 0.66, 0.96];
+  CAPS.forEach((c, k) => c.classList.toggle('on', on && k === i));
+  GH.forEach((c, k) => c.classList.toggle('on', on && k === i && g.p > 0.03));
+  TK.forEach((c, k) => c.style.setProperty('--v', clamp((g.p - cuts[k]) / (cuts[k + 1] - cuts[k])).toFixed(3)));
+}
+let revving = false;
+function startWheel() {
+  measure();
+  // ask first, so devices without WebGL get the flat page quietly instead of a renderer error
+  let gl = null; try { const c = document.createElement('canvas'); gl = c.getContext('webgl2') || c.getContext('webgl'); const x = gl && gl.getExtension('WEBGL_lose_context'); if (x) x.loseContext(); } catch (e) { gl = null; }
+  try { wheel = gl && window.NKWheel && window.NKWheel.mount($('#wheel'), { pose, season: SEASON }); } catch (e) { wheel = null; }
+  if (!wheel) { document.documentElement.classList.add('nogl'); return; }
+  wheel.bindDrag($('#dragHero')); wheel.bindDrag($('#dragStory'));
+  // the canvas is fixed, so observe the sections it belongs to (L-010)
+  if ('IntersectionObserver' in window && wheel.setVisible) {
+    const vis = { hero: true, story: true };
+    const io = new IntersectionObserver((es) => { es.forEach((en) => { vis[en.target.id === 'story' ? 'story' : 'hero'] = en.isIntersecting; }); if (wheel) wheel.setVisible(vis.hero || vis.story); }, { rootMargin: '150px 0px' });
+    io.observe($('.hero')); io.observe($('#story'));
+  }
+  const dh = $('#dragHero'), off = () => { revving = false; wheel.rev(false); humStop(); };
+  dh.addEventListener('pointerdown', () => { revving = true; wheel.rev(true); humStart(); if (navigator.vibrate) try { navigator.vibrate(25); } catch (x) { /* ignore */ } smokeLoop(); $('#hint').classList.add('gone'); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((n) => dh.addEventListener(n, off));
+  const tt = $('#tyreText'), pin = $('.pin');
+  tt.addEventListener('focus', () => { if (window.innerWidth >= 900) return; pin.classList.add('typing'); document.documentElement.classList.add('tw'); requestAnimationFrame(() => { typeY = CAPS[1].getBoundingClientRect().bottom + 112; typing = 1; }); });
+  let tyT = 0; tt.addEventListener('blur', () => { clearTimeout(tyT); tyT = setTimeout(() => { if (document.activeElement === tt) return; typing = 0; pin.classList.remove('typing'); document.documentElement.classList.remove('tw'); }, 320); });
+  tt.addEventListener('keydown', (e) => { if (e.key === 'Enter') tt.blur(); });
+  onScroll.push(storyUI); hotLoop(); storyUI();
+}
+if (document.fonts && document.fonts.load) Promise.all([document.fonts.load('italic 900 64px Archivo'), document.fonts.load('700 40px Archivo')]).then(startWheel, startWheel); else startWheel();
+window.addEventListener('resize', () => { measure(); storyUI(); });
+
+/* burnout smoke and optional sound (off until the speaker button is pressed) */
+let smokeOn = false; const PT = []; let acc = 0;
+function smokeLoop() {
+  if (smokeOn || RM || !wheel) return; smokeOn = true;
+  const c = $('#smoke'), g = c.getContext('2d'), col = getComputedStyle(document.documentElement).getPropertyValue('--smokec').trim() || 'rgba(210,200,198,.5)';
+  const spr = document.createElement('canvas'); spr.width = spr.height = 128;
+  { const sg = spr.getContext('2d'), gr = sg.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(210,200,198,0)'); sg.fillStyle = gr; sg.fillRect(0, 0, 128, 128); }
+  const dpr = Math.min(window.devicePixelRatio || 1, 2); c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  let prev = performance.now();
+  (function run(n) {
+    const dt = Math.min(0.05, (n - prev) / 1000); prev = n; const sp = Math.abs(wheel.speed()), P = wheel.where(); humTick(sp);
+    if (sp > 12 && window.scrollY < G.S0 * 0.4) { acc += Math.min(140, (sp - 12) * 6) * dt; for (; acc >= 1; acc--) if (PT.length < 180) PT.push({ x: P.x - P.d * 0.04 + (Math.random() - 0.5) * P.d * 0.16, y: P.y + P.d * 0.47, vx: -(50 + Math.random() * 230), vy: -(10 + Math.random() * 64), r: P.d * 0.05 + Math.random() * P.d * 0.06, a: 0.2 + Math.random() * 0.18, l: 0 }); }
+    g.clearRect(0, 0, c.clientWidth, c.clientHeight);
+    for (let j = PT.length - 1; j >= 0; j--) { const p = PT[j]; p.l += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.985; p.vy *= 0.985; p.r += dt * P.d * 0.12; const al = p.a * (1 - p.l / 2.1); if (al <= 0) { PT.splice(j, 1); continue; } g.globalAlpha = al; g.drawImage(spr, p.x - p.r, p.y - p.r, p.r * 2, p.r * 2); }
+    g.globalAlpha = 1;
+    if (PT.length || sp > 12 || revving) requestAnimationFrame(run); else { smokeOn = false; g.clearRect(0, 0, c.clientWidth, c.clientHeight); }
+  })(prev);
+}
+const SND = { ctx: null, on: false }; let HUM = null;
+function audio() { if (!SND.ctx) { try { const AC = window.AudioContext || window.webkitAudioContext; SND.ctx = AC ? new AC() : null; } catch (e) { SND.ctx = null; } } if (SND.ctx && SND.ctx.state === 'suspended') SND.ctx.resume(); return SND.ctx; }
+function burst() {
+  const c = SND.on && audio(); if (!c) return; const t = c.currentTime, len = 0.16;
+  const buf = c.createBuffer(1, Math.floor(c.sampleRate * len), c.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / ch.length, 2);
+  const src = c.createBufferSource(); src.buffer = buf; const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1700; f.Q.value = 0.9;
+  const g = c.createGain(); g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); src.connect(f); f.connect(g); g.connect(c.destination); src.start(t);
+}
+function humStart() { const c = SND.on && audio(); if (!c || HUM) return; const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 36; const o2 = c.createOscillator(); o2.type = 'triangle'; o2.frequency.value = 72;
+  const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 260; f.Q.value = 2; const g = c.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(0.06, c.currentTime + 0.3);
+  o.connect(f); o2.connect(f); f.connect(g); g.connect(c.destination); o.start(); o2.start(); HUM = { o, o2, g, c }; }
+function humTick(sp) { if (!HUM) return; const s = Math.min(1, Math.abs(sp) / 48), t = HUM.c.currentTime; HUM.o.frequency.setTargetAtTime(36 + s * 52, t, 0.06); HUM.o2.frequency.setTargetAtTime(72 + s * 104, t, 0.06); HUM.g.gain.setTargetAtTime(0.03 + 0.08 * s, t, 0.08); }
+function humStop() { if (!HUM) return; const h = HUM; HUM = null; const t = h.c.currentTime; h.g.gain.cancelScheduledValues(t); h.g.gain.setTargetAtTime(0, t, 0.14); setTimeout(() => { try { h.o.stop(); h.o2.stop(); } catch (e) { /* ignore */ } }, 700); }
+
+/* ---------- price board ---------- */
+function renderBoard() {
+  const now = NOW();
+  $('#board').innerHTML = E.SERVICES.map((s) => {
+    const nf = E.nextFree(S, s.mins, now, 6);
+    return '<li><button class="row" data-act="book" data-svc="' + s.id + '"><span class="n">' + s.name + '</span><span class="p">' + E.pTxt(s) + (s.unit ? '<small> ' + s.unit + '</small>' : '') + '</span><span class="s">' + s.short + '</span>' +
+      '<span class="meta"><span class="free' + (nf ? '' : ' none') + '">' + (nf ? 'Ledigt ' + E.when(nf.date, nf.time, now) : 'Fullbokat närmaste veckan') + '</span><span>Cirka ' + s.mins + ' min</span>' + (s.real ? '<span class="tag">NK:s pris</span>' : '') + '<span class="go">Boka' + ic('go') + '</span></span></button></li>';
   }).join('');
 }
-var FEAT=[['skifte','Däckskifte','Byte till dina egna hjul, lufttryck och mönsterdjup.'],['hotell','Däckhotell','Vi förvarar hjulen och skiftar vår och höst.'],['hjulinst','Hjulinställning','Rätt vinklar ger jämnt slitage och en bil som går rakt.'],['verkstad','Service och reparation','Felsökning och reparationer. Pris innan vi börjar.']];
-function renderCards(){
-  $('#scards').innerHTML=FEAT.map(function(f){var s2=svc(f[0]);return '<article class="scard"><h4>'+f[1]+'</h4><p>'+f[2]+'</p><div class="pm"><b>'+pTxt(s2)+'</b><span>'+(s2.unit?s2.unit:'cirka '+s2.mins+' min')+'</span></div><button class="btn sm" data-act="book" data-svc="'+f[0]+'"><span>Boka</span></button></article>'}).join('');
-  $('#qsvc').innerHTML=QS.map(function(q){return '<button type="button" data-act="qpick" data-v="'+q[1]+'" aria-pressed="'+(QV===q[1])+'">'+q[0]+'</button>'}).join('');
+
+/* ---------- tyre shop ---------- */
+const F = { w: 205, p: 55, r: 16 };
+const dimStr = () => E.dim(F.w, F.p, F.r);
+function renderSize(dir, which) {
+  const dg = (k, label) => '<div class="digit"><button data-act="step" data-k="' + k + '" data-d="1" aria-label="Öka ' + label + '">' + ic('up') + '</button><span class="v" aria-live="polite" aria-label="' + label + ' ' + F[k] + '"><b class="' + (which === k || which === '*' ? (dir > 0 ? 'up' : 'dn') : '') + '">' + F[k] + '</b></span><button data-act="step" data-k="' + k + '" data-d="-1" aria-label="Minska ' + label + '">' + ic('dn') + '</button></div>';
+  $('#size').innerHTML = dg('w', 'bredd') + '<span class="sep">/</span>' + dg('p', 'profil') + '<span class="sep">R</span>' + dg('r', 'fälgdiameter');
 }
-var QV='skifte';
-function renderSize(dir,which){
-  var dg=function(k,label){return '<div class="digit"><button data-act="step" data-k="'+k+'" data-d="1" aria-label="Öka '+label+'">'+ic('up')+'</button><span class="v"><b class="'+(which===k?(dir>0?'up':'dn'):'')+'">'+F[k]+'</b></span><button data-act="step" data-k="'+k+'" data-d="-1" aria-label="Minska '+label+'">'+ic('dn')+'</button></div>'};
-  $('#size').innerHTML=dg('w','bredd')+'<span class="sep">/</span>'+dg('p','profil')+'<span class="sep">R</span>'+dg('r','fälgstorlek');
-}
-function renderSeason(){
-  var i=TYPES.map(function(t){return t[0]}).indexOf(SEASON);
-  [].forEach.call(document.querySelectorAll('[data-season]'),function(el){
-    if(!el.firstChild)el.innerHTML='<i></i>'+TYPES.map(function(t){return '<button data-act="season" data-v="'+t[0]+'">'+t[1]+'</button>'}).join('');
-    el.style.setProperty('--i',i);[].forEach.call(el.querySelectorAll('button'),function(b){b.setAttribute('aria-pressed',b.dataset.v===SEASON)});
+function renderSeason() {
+  const i = E.TYPES.map((t) => t[0]).indexOf(SEASON);
+  $$('[data-season]').forEach((el) => {
+    if (!el.firstChild) el.innerHTML = '<i></i>' + E.TYPES.map((t) => '<button data-act="season" data-v="' + t[0] + '">' + t[1] + '</button>').join('');
+    el.setAttribute('role', 'group'); el.setAttribute('aria-label', 'Säsong');
+    el.style.setProperty('--i', i); $$('button', el).forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === SEASON));
   });
 }
-function setSeason(v){if(v===SEASON)return;SEASON=v;F.type=v;if(wheel)wheel.setSeason(v);if(car)car.setSeason(v);renderSeason();renderTyres();if(window.renderCfg)renderCfg()}
-function renderTyres(){
-  var dim=dimStr();
-  $('#tyres').innerHTML=PRODUCTS.filter(function(p){return p.type===F.type}).map(function(p){
-    var st=stockOf(p.id+'|'+dim),pr=price(p,dim);
-    return '<article class="tcard"><div class="tread '+p.type+'"><i></i><span>'+typeName(p.type)+'</span></div><div class="tbody"><div><div class="m">'+p.brand+' '+p.model+'</div><div class="s'+(st>0&&st<5?' low':'')+'">'+dim+'. '+(st>=4?(st<5?'Bara '+st+' kvar i lager':st+' i lager'):'Beställs hem på 2 till 3 dagar')+'</div></div>'+
-      '<div class="pr">'+kr(pr)+'<small>4 st '+kr(pr*4)+'</small></div>'+
-      '<button class="btn sm ink" data-act="add" data-pid="'+p.id+'"><span>Lägg 4 i varukorgen</span></button></div><i class="glare"></i></article>';
+function setSeason(v) { if (v === SEASON) return; SEASON = v; if (wheel) wheel.setSeason(v); renderSeason(); renderTyres(); }
+function renderTyres() {
+  const dim = dimStr();
+  $('#tyres').innerHTML = E.PRODUCTS.filter((p) => p.type === SEASON).map((p) => {
+    const st = E.stockOf(S, p.id + '|' + dim), pr = E.price(p, dim), inCart = S.cart.find((i) => i.pid === p.id && i.dim === dim);
+    const sTxt = st >= 8 ? st + ' i lager' : st >= 4 ? 'Bara ' + st + ' kvar i lager' : st > 0 ? st + ' i lager, resten beställs hem på 2–3 dagar' : 'Beställs hem på 2–3 dagar';
+    return '<article class="tcard"><div><div class="k">' + esc(p.brand) + ', ' + E.typeName(p.type).toLowerCase() + '</div><div class="m">' + esc(p.model) + '</div></div>' +
+      '<div class="pr">' + kr(pr) + '<small>4 st ' + kr(pr * 4) + '</small></div><div class="s ' + (st >= 8 ? 'ok' : st > 0 ? 'low' : 'back') + '">' + dim + '. ' + sTxt + '</div>' +
+      '<button class="btn sm ink" data-act="add" data-pid="' + p.id + '"><span>' + (inCart ? ic('check') + inCart.qty + ' i varukorgen, lägg till 4' : 'Lägg 4 i varukorgen') + '</span></button></article>';
   }).join('');
   setCart();
 }
-function setCart(){var n=S.cart.reduce(function(a,i){return a+i.qty},0),e=$('#cartn'),bm=$('#barMain');e.textContent=n;e.setAttribute('data-n',n);
-  e.parentNode.setAttribute('aria-label',n?'Öppna varukorgen, '+n+' däck':'Öppna varukorgen');
-  bm.dataset.act=n?'cart':'book';bm.innerHTML='<span>'+(n?ic('cart')+'Varukorg ('+n+')':'Boka tid')+'</span>'}
-function renderStatic(){
-  var hrs=[['Måndag',1,'07–17'],['Tisdag',2,'07–17'],['Onsdag',3,'07–17'],['Torsdag',4,'07–17'],['Fredag',5,'07–16'],['Lördag',6,'Stängt'],['Söndag',0,'Stängt']];
-  $('#hours').innerHTML=hrs.map(function(h){return '<tr class="'+(h[1]===now.getDay()?'today':'')+'"><td>'+h[0]+'</td><td>'+h[2]+'</td></tr>'}).join('');
-  var m=now.getHours()*60+now.getMinutes(),open=isOpenDay(now)&&m>=420&&m<closeHour(TODAY)*60,el=$('#openNow');
-  if(open){el.textContent='Öppet nu, till klockan '+closeHour(TODAY);el.className='status open'}
-  else{var nx=D(TODAY);if(!(isOpenDay(now)&&m<420))do{nx.setDate(nx.getDate()+1)}while(!isOpenDay(nx));
-    el.textContent='Stängt just nu. Öppnar '+(iso(nx)===TODAY?'idag':'på '+WDL[nx.getDay()])+' klockan 7';el.className='status closed'}
-  $('#todayHours').textContent=isOpenDay(now)?'07 till '+closeHour(TODAY):'Stängt';
+function setCart() {
+  const n = E.cartCount(S), e = $('#cartn'), bm = $('#barMain');
+  e.textContent = n; e.setAttribute('data-n', n); e.parentNode.setAttribute('aria-label', n ? 'Varukorgen, ' + n + ' däck' : 'Varukorgen är tom');
+  bm.dataset.act = n ? 'cart' : 'book'; bm.innerHTML = '<span>' + (n ? ic('cart') + 'Varukorg, ' + n + ' däck' : 'Boka tid') + '</span>';
 }
 
-/* ---------- booking / checkout sheet ---------- */
-var W=null;
-var RM=window.matchMedia('(prefers-reduced-motion: reduce)').matches,closeT=null,lastFocus=null;
-function vt(fn){if(document.startViewTransition&&!RM){try{var t=document.startViewTransition(fn),no=function(){};t.ready.catch(no);t.finished.catch(no);t.updateCallbackDone.catch(no);return}catch(e){}}fn()}
-function openFlow(kind,o){
-  o=o||{};clearTimeout(closeT);
-  var sc=$('#scrim');sc.classList.remove('out');$('#sheet').innerHTML='';
-  W={kind:kind,cfg:o.cfg||null,i:0,shown:-1,svc:o.svc||null,extras:o.extras||[],reg:o.reg||REG||'',model:'',date:null,time:null,name:'',phone:'',note:'',email:'',fit:true,err:'',result:null};
-  W.steps=kind==='order'?['cart','time','details','done']:kind==='quick'?['quick','time','details','done']:['service','car','time','details','done'];
-  if(kind==='booking'&&W.svc)W.i=W.reg.replace(/\s/g,'').length>=5?2:1;
-  lastFocus=document.activeElement;document.documentElement.style.overflow='hidden';
-  sc.classList.add('on');renderSheet();
+/* ---------- tyre hotel ---------- */
+let hpNow = 895, hpRaf = 0;
+function renderHotel() {
+  const sv = E.svc('hotell');
+  $('#hotelOpts').innerHTML = '<label class="ck fixed"><input type="checkbox" checked disabled><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Förvaring och skifte<small>Vår och höst, mönsterdjupet mäts</small></span><em>' + kr(sv.price) + '</em></label>' +
+    E.HOTEL_X.map((x) => '<label class="ck"><input type="checkbox" data-x="' + x.id + '"><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>' + x.n + '<small>' + (x.id === 'wash' ? 'Rena hjul innan de ställs undan' : 'Inför varje säsong, så slipper du vibrationer') + '</small></span><em>+' + kr(x.p) + '</em></label>').join('');
 }
-function closeFlow(){
-  if(!W)return;W=null;var sc=$('#scrim');sc.classList.add('out');document.documentElement.style.overflow='';
-  closeT=setTimeout(function(){sc.classList.remove('on','out');$('#sheet').innerHTML=''},RM?0:190);
-  if(lastFocus&&lastFocus.focus)try{lastFocus.focus({preventScroll:true})}catch(e){}
+const hotelExtras = () => E.HOTEL_X.filter((x) => { const i = $('#hotelOpts input[data-x="' + x.id + '"]'); return i && i.checked; });
+function tweenHotel() {
+  const to = E.svc('hotell').price + hotelExtras().reduce((a, x) => a + x.p, 0), from = hpNow, t0 = performance.now(), el = $('#hotelPrice');
+  cancelAnimationFrame(hpRaf);
+  (function run(n) { const t = Math.min(1, (n - t0) / (RM ? 1 : 420)), k = 1 - Math.pow(1 - t, 3); hpNow = Math.round(from + (to - from) * k); el.textContent = kr(hpNow); if (t < 1) hpRaf = requestAnimationFrame(run); })(t0);
 }
-function cartTotal(){return S.cart.reduce(function(a,i){return a+price(prod(i.pid),i.dim)*i.qty},0)}
-function flowMins(){return W.kind==='order'?60:svc(W.svc).mins}
-function hubSvg(doneN,all){
-  var s='<svg class="hub'+(all?' done':'')+'" viewBox="0 0 56 56" aria-hidden="true"><circle class="ring" cx="28" cy="28" r="25"/><circle cx="28" cy="28" r="5" fill="currentColor"/>';
-  for(var k=0;k<5;k++){var a=-Math.PI/2+k*Math.PI*2/5,x=28+Math.cos(a)*15,y=28+Math.sin(a)*15,p=[];
-    for(var j=0;j<6;j++){var b=j*Math.PI/3;p.push((x+Math.cos(b)*5.4).toFixed(1)+','+(y+Math.sin(b)*5.4).toFixed(1))}
-    s+='<polygon class="nut'+(k<doneN?' on':'')+'" points="'+p.join(' ')+'"/>'}
-  return s+'</svg>';
+
+/* ---------- find us ---------- */
+function renderVisit() {
+  const now = NOW(), os = E.openState(now), el = $('#openNow');
+  el.textContent = os.text; el.className = 'status' + (os.open ? ' open' : '');
+  const hrs = [['Måndag', 1], ['Tisdag', 2], ['Onsdag', 3], ['Torsdag', 4], ['Fredag', 5], ['Lördag', 6], ['Söndag', 0]];
+  $('#hours').innerHTML = hrs.map((h) => { const c = h[1] === 0 || h[1] === 6 ? 0 : h[1] === 5 ? 16 : 17; return '<tr class="' + (h[1] === now.dow ? 'today' : '') + '"><td>' + h[0] + '</td><td>' + (c ? '07–' + c : 'Stängt') + '</td></tr>'; }).join('');
 }
-function renderSheet(){
-  var st=W.steps[W.i],b='',title='',next='Fortsätt',canBack=W.i>0&&st!=='done';
-  var total=W.steps.length-1,nuts=st==='done'?5:Math.round(W.i/total*5);
-  if(st==='service'){title='Vad gäller det?';
-    b=SERVICES.map(function(s){return '<button class="opt" data-act="pick" data-v="'+s.id+'" aria-pressed="'+(W.svc===s.id)+'"><b>'+s.name+'</b><em>'+pTxt(s)+'</em><span>Cirka '+s.mins+' min</span></button>'}).join('');
+function renderSite() { renderBoard(); renderTyres(); renderVisit(); }
+
+/* ---------- the booking sheet: book, cart, my bookings, move ---------- */
+let W = null, closeT = 0, lastFocus = null;
+const STEPS = { book: ['what', 'when', 'who', 'done'], order: ['cart', 'when', 'who', 'done'], mine: ['mine'], move: ['when', 'done'] };
+const TITLES = { what: 'Vad gäller det?', when: 'Välj tid', who: 'Dina uppgifter', done: 'Klart', cart: 'Varukorgen', mine: 'Mina bokningar' };
+function openFlow(kind, o) {
+  o = o || {}; clearTimeout(closeT);
+  const m = me.get(), sc = $('#scrim');
+  sc.classList.remove('out'); $('#sheet').innerHTML = '';
+  const reg = o.reg || REG || m.reg || '';
+  W = { kind, steps: STEPS[kind].slice(), i: 0, shown: -1, svc: o.svc || null, reg, date: o.date || null, time: o.time || null, extras: o.extras || [],
+    name: m.name || '', phone: o.phone || m.phone || '', email: m.email || '', note: '', fit: true, err: null, result: null, moveId: o.moveId || null, list: null, ask: null, busy: false, model: '' };
+  if (kind === 'book' && W.svc) W.i = E.normReg(W.reg).ok ? (W.date && W.time && E.slotState(S, W.date, W.time, E.svc(W.svc).mins, NOW()) === 'free' ? 2 : 1) : 0;
+  if (kind === 'mine' && W.phone) W.list = E.mine(S, W.phone, NOW());
+  lastFocus = document.activeElement; document.documentElement.style.overflow = 'hidden'; document.body.classList.add('sheet-open');
+  $('#site').inert = true; $('.demo').inert = true; sc.classList.add('on');
+  try { if (!history.state || !history.state.sheet) history.pushState({ sheet: 1 }, ''); } catch (e) { /* ignore */ }
+  renderSheet();
+}
+function closeFlow(fromPop) {
+  if (!W) return; W = null; const sc = $('#scrim'); sc.classList.add('out'); document.documentElement.style.overflow = ''; document.body.classList.remove('sheet-open'); $('#site').inert = false; $('.demo').inert = false;
+  closeT = setTimeout(() => { sc.classList.remove('on', 'out'); $('#sheet').innerHTML = ''; }, RM ? 0 : 190);
+  if (!fromPop) { try { if (history.state && history.state.sheet) history.back(); } catch (e) { /* ignore */ } }
+  if (lastFocus && lastFocus.focus && lastFocus.isConnected) try { lastFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+  if (!hotOn && window.scrollY < 10) hotLoop();
+}
+window.addEventListener('popstate', () => { if (W) closeFlow(true); });
+const flowMins = () => (W.kind === 'order' ? E.svc('montering').mins : W.kind === 'move' ? (E.byId(S, W.moveId) || { mins: 30 }).mins : E.svc(W.svc).mins);
+function hubSvg() {
+  let s = '<svg class="hub" viewBox="0 0 56 56" aria-hidden="true"><circle class="ring" cx="28" cy="28" r="25"/><circle cx="28" cy="28" r="5" fill="currentColor"/>';
+  for (let k = 0; k < 5; k++) { const a = -Math.PI / 2 + k * Math.PI * 2 / 5, x = 28 + Math.cos(a) * 15, y = 28 + Math.sin(a) * 15, p = []; for (let j = 0; j < 6; j++) { const b = j * Math.PI / 3; p.push((x + Math.cos(b) * 5.4).toFixed(1) + ',' + (y + Math.sin(b) * 5.4).toFixed(1)); } s += '<polygon class="nut" points="' + p.join(' ') + '"/>'; }
+  return s + '</svg>';
+}
+const fieldErr = (f) => (W.err && W.err.field === f ? '<p class="ferr" role="alert" id="err-' + f + '">' + W.err.err + '</p>' : '');
+const bad = (f) => (W.err && W.err.field === f ? ' bad' : '');
+const regField = (label) => '<label class="field' + bad('reg') + '"><span>' + label + '</span><span class="reg"><i></i><input id="fReg" value="' + esc(W.reg) + '" maxlength="8" placeholder="ABC 123" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="err-reg"></span>' + fieldErr('reg') + '</label>';
+function stepWhat() {
+  return '<span class="flab">Tjänst</span><div class="opts2" role="radiogroup" aria-label="Tjänst">' + E.SERVICES.map((s) => '<button class="opt" role="radio" aria-checked="' + (W.svc === s.id) + '" data-act="pick" data-v="' + s.id + '"><b>' + s.name + '</b><em>' + E.pTxt(s) + '</em><span>Cirka ' + s.mins + ' min' + (s.unit ? ', ' + s.unit : '') + '</span></button>').join('') + '</div>' +
+    fieldErr('svc') + regField('Bilens regnummer');
+}
+function stepWhen() {
+  const now = NOW(), mins = flowMins(), days = E.workdays(now.date, 10), except = W.kind === 'move' ? W.moveId : null;
+  const freeOn = (d) => E.slots(S, d, mins, now, except).filter((x) => x.state === 'free');
+  if (!W.date || !days.includes(W.date)) W.date = (days.find((d) => freeOn(d).length) || days[0]);
+  const nf = E.nextFree(S, mins, now), list = E.slots(S, W.date, mins, now, except).filter((x) => x.state !== 'closed' && x.state !== 'past');
+  if (W.time && !list.some((x) => x.t === W.time && x.state === 'free')) W.time = null;
+  return (W.kind === 'move' ? '<p class="note" style="margin-bottom:12px">Du flyttar ' + esc(E.svc(E.byId(S, W.moveId).svc).name.toLowerCase()) + ' för ' + esc(E.byId(S, W.moveId).reg) + '.</p>' : '') +
+    (nf ? '<div class="first"><span>Första lediga: <b>' + E.when(nf.date, nf.time, now) + '</b></span><button class="btn sm ink" data-act="first" data-date="' + nf.date + '" data-time="' + nf.time + '"><span>Välj</span></button></div>' : '') +
+    '<div class="days" role="group" aria-label="Dag">' + days.map((d) => { const x = E.D(d), n = freeOn(d).length; return '<button class="day" data-act="day" data-v="' + d + '" aria-pressed="' + (W.date === d) + '" aria-label="' + E.nice(d) + ', ' + (n ? n + ' lediga tider' : 'fullbokat') + '"><span>' + (d === now.date ? 'idag' : E.WD[x.getDay()]) + '</span><b>' + x.getDate() + '</b><small class="' + (n ? '' : 'none') + '">' + (n ? n + ' lediga' : 'fullt') + '</small></button>'; }).join('') + '</div>' +
+    fieldErr('time') +
+    (list.length ? '<div class="slots" role="group" aria-label="Tid ' + E.nice(W.date) + '">' + list.map((x) => '<button class="slot" data-act="slot" data-v="' + x.t + '"' + (x.state === 'free' ? '' : ' disabled aria-label="' + x.t + ', upptagen"') + ' aria-pressed="' + (W.time === x.t) + '">' + x.t + '</button>').join('') + '</div>' +
+      '<p class="legend">Överstrukna tider är upptagna. Jobbet tar cirka ' + mins + ' minuter.</p>'
+      : '<p class="none-day">Inga lediga tider ' + (W.date === now.date ? 'idag' : 'den här dagen') + '. Välj en annan dag.</p>');
+}
+function summary() {
+  const now = NOW(); let h = '<div class="sum">';
+  if (W.kind === 'order') {
+    h += '<div><span>' + E.cartCount(S) + ' däck' + (W.fit ? ' med montering' : '') + '</span><span>' + kr(E.cartTotal(S) + (W.fit ? E.FIT : 0)) + '</span></div>';
+    if (W.fit && W.date) h += '<div><span>Montering</span><span>' + E.when(W.date, W.time, now) + '</span></div>';
+  } else {
+    const s = E.svc(W.svc), tot = s.price ? s.price + W.extras.reduce((a, x) => a + x.p, 0) : null;
+    h += '<div><span>' + s.name + '</span><span>' + E.pTxt(s) + '</span></div>' + W.extras.map((x) => '<div><span>' + esc(x.n) + '</span><span>+' + kr(x.p) + '</span></div>').join('');
+    h += '<div><span>Bil</span><span>' + esc(E.normReg(W.reg).reg || W.reg) + '</span></div><div><span>Tid</span><span>' + E.when(W.date, W.time, now) + '</span></div>';
+    if (W.extras.length && tot) h += '<div class="tot"><span>Summa, exempelpris</span><span>' + kr(tot) + '</span></div>';
   }
-  if(st==='quick'){title=W.cfg?'Boka med ditt val':'Snabboffert';
-    b=(W.cfg?'<div class="cfgsum"><b>'+esc(W.cfg.rim)+' fälg, '+esc(W.cfg.tyre.toLowerCase())+(W.cfg.paint?', '+esc(W.cfg.paint):'')+'</b><span>Valt i 3D-vyn. Lacken är bara för att se helheten.</span></div>':'')+
-      '<label class="field"><span>Regnummer</span><div class="reg"><i></i><input id="fReg" value="'+esc(W.reg)+'" maxlength="7" placeholder="ABC 123" autocomplete="off" autocapitalize="characters"></div></label>'+
-      '<span class="flab">Vad gäller det?</span><div class="qopts">'+QS.map(function(q){var s2=svc(q[1]);return '<button class="opt" data-act="pick" data-v="'+q[1]+'" aria-pressed="'+(W.svc===q[1])+'"><b>'+q[0]+'</b><span>'+pTxt(s2)+'</span></button>'}).join('')+'</div>';
+  return h + '<button class="linkb edit" data-act="goto" data-v="' + (W.kind === 'order' ? 'cart' : 'what') + '">Ändra</button></div>';
+}
+function stepWho() {
+  return summary() +
+    (W.kind === 'order' && W.fit ? regField('Regnummer på bilen som får däcken') : '') +
+    '<label class="field' + bad('name') + '"><span>Namn</span><input id="fName" value="' + esc(W.name) + '" autocomplete="name" aria-describedby="err-name">' + fieldErr('name') + '</label>' +
+    '<label class="field' + bad('phone') + '"><span>Mobilnummer <small>för sms om tiden</small></span><input id="fPhone" type="tel" value="' + esc(W.phone) + '" inputmode="tel" autocomplete="tel" placeholder="070-123 45 67" aria-describedby="err-phone">' + fieldErr('phone') + '</label>' +
+    '<label class="field' + bad('email') + '"><span>Mejl <small>frivilligt, för bekräftelse</small></span><input id="fEmail" type="email" value="' + esc(W.email) + '" inputmode="email" autocomplete="email" aria-describedby="err-email">' + fieldErr('email') + '</label>' +
+    '<label class="field"><span>Meddelande till verkstaden <small>frivilligt</small></span><textarea id="fNote" rows="2" maxlength="300">' + esc(W.note) + '</textarea></label>' +
+    '<p class="note">Du betalar på plats. Vi använder uppgifterna bara för din bokning.</p>';
+}
+function stepCart() {
+  if (!S.cart.length) return '<p class="empty">Varukorgen är tom. Ställ in din dimension under Köp däck och lägg till de däck du vill ha.</p>';
+  return S.cart.map((it, k) => { const p = E.prod(it.pid); return '<div class="citem"><div><b>' + esc(p.brand + ' ' + p.model) + '</b><div class="small">' + it.dim + ', ' + E.typeName(p.type).toLowerCase() + ', ' + kr(E.price(p, it.dim)) + ' st</div></div><div style="text-align:right;font-weight:800">' + kr(E.price(p, it.dim) * it.qty) + '</div>' +
+    '<div class="qty"><button data-act="qty" data-k="' + k + '" data-d="-1" aria-label="Ett däck färre">−</button><span aria-live="polite">' + it.qty + ' st</span><button data-act="qty" data-k="' + k + '" data-d="1" aria-label="Ett däck till"' + (it.qty >= E.MAXQ ? ' disabled' : '') + '>+</button></div><button class="linkb rm" data-act="rm" data-k="' + k + '">Ta bort</button></div>'; }).join('') +
+    '<label class="check"><input type="checkbox" id="fFit"' + (W.fit ? ' checked' : '') + '><span><b>Montering och balansering, ' + kr(E.FIT) + '</b><br><span class="small">Du väljer tid i nästa steg. Utan montering hämtar du däcken hos oss.</span></span></label>' +
+    '<div class="sum"><div class="tot"><span>Att betala i verkstaden</span><span>' + kr(E.cartTotal(S) + (W.fit ? E.FIT : 0)) + '</span></div></div>';
+}
+function stepMine() {
+  let h = '<form id="mineForm" novalidate><label class="field' + bad('phone') + '"><span>Mobilnumret du bokade med</span><input id="fPhone" type="tel" value="' + esc(W.phone) + '" inputmode="tel" autocomplete="tel" placeholder="070-123 45 67">' + fieldErr('phone') + '</label><button class="btn ink" type="submit"><span>Visa mina bokningar</span></button></form>';
+  if (W.list) {
+    const now = NOW();
+    h += W.list.length ? '<div class="mlist">' + W.list.map((b) => {
+      const s = E.svc(b.svc), ask = W.ask === b.id;
+      return '<div class="mcard"><b>' + s.name + ', ' + E.when(b.date, b.time, now) + '</b><div class="small">' + esc(b.reg) + ', bokning ' + b.id + ', ' + E.LABEL[b.status].toLowerCase() + '</div>' +
+        (ask ? '<div class="confirm" role="alert"><span>Avboka ' + s.name.toLowerCase() + ' ' + E.when(b.date, b.time, now) + '?</span><div class="acts" style="margin:0;padding-left:5px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn sm" data-act="docancel" data-id="' + b.id + '"><span>Ja, avboka</span></button><button class="btn sm line" data-act="keep"><span>Behåll</span></button></div></div>'
+          : (b.status === 'Pågår' || b.status === 'Klar' ? '<p class="small" style="margin-top:8px">Bilen är redan hos oss. Ring 026-18 05 01 om något ändras.</p>' : '<div class="acts"><button class="btn sm ink" data-act="move" data-id="' + b.id + '"><span>Ändra tid</span></button><button class="btn sm line" data-act="askcancel" data-id="' + b.id + '"><span>Avboka</span></button></div>')) + '</div>';
+    }).join('') + '</div>' : '<p class="empty" style="margin-top:16px">Inga kommande bokningar på det numret. Har du bokat på telefon? Ring 026-18 05 01.</p>';
   }
-  if(st==='car'){title='Vilken bil?';
-    b='<label class="field"><span>Regnummer</span><div class="reg"><i></i><input id="fReg" value="'+esc(W.reg)+'" maxlength="7" placeholder="ABC 123" autocomplete="off"></div></label>'+
-      '<label class="field"><span>Bilmodell (frivilligt)</span><input id="fModel" value="'+esc(W.model)+'" placeholder="Till exempel Volvo V60"></label>'+
-      '<p class="small" style="color:var(--smoke)">I den skarpa versionen hämtas modell och däckdimension automatiskt från regnumret.</p>';
+  return h;
+}
+function stepDone() {
+  const r = W.result, now = NOW(), b = r.booking, first = (W.name || '').split(' ')[0];
+  let h = '<div class="done"><div class="tick">' + ic('check') + '</div><h3 class="d">' + (W.kind === 'move' ? 'Tiden är flyttad' : 'Tack' + (first ? ' ' + esc(first) : '') + '!') + '</h3>';
+  if (r.order) h += '<div class="ref d">' + r.order.id + '</div><p>' + (b ? 'Vi monterar däcken <b>' + E.when(b.date, b.time, now) + '</b> på Brynäsgatan 67.' : 'Vi hör av oss när däcken är klara att hämta.') + (r.order.backorder ? ' Något av däcken beställs hem, det tar 2–3 dagar.' : '') + '</p>';
+  else h += '<div class="ref d">' + b.id + '</div><p>Välkommen <b>' + E.when(b.date, b.time, now) + '</b> till Brynäsgatan 67.' + (b.status === 'Ny' ? ' Verkstaden bekräftar tiden med ett sms.' : ' Tiden är bekräftad.') + '</p>';
+  h += '<div class="dacts">' + (b ? '<button class="btn" data-act="ics"><span>' + ic('cal') + 'Lägg i kalendern</span></button>' : '') +
+    '<a class="btn line" href="https://www.google.com/maps/search/?api=1&amp;query=NK+Bil+%26+D%C3%A4ck+Bryn%C3%A4sgatan+67+G%C3%A4vle" target="_blank" rel="noopener"><span>' + ic('pin') + 'Visa vägen</span></a>' +
+    (b ? '<button class="linkb" data-act="mine">Ändra eller avboka</button>' : '') + '</div>' +
+    '<p class="note" style="margin-top:18px">Förhandsvisning: i skarp drift kommer ett sms nu och en påminnelse dagen innan. <button class="linkb" data-act="toadmin">Se hur bokningen landar i Verkstaden</button></p></div>';
+  return h;
+}
+function renderSheet(keepScroll) {
+  if (!W) return;
+  const st = W.steps[W.i], sh = $('#sheet');
+  const progSteps = W.steps.filter((x) => x !== 'done' && x !== 'mine'), pos = progSteps.indexOf(st);
+  const sub = st === 'done' || st === 'mine' ? '' : 'Steg ' + (pos + 1) + ' av ' + progSteps.length;
+  if (!sh.firstChild) sh.innerHTML = '<header class="shead">' + hubSvg() + '<div><h3 class="d" id="sheetTitle" tabindex="-1"></h3><p id="sheetSub"></p></div><button class="x" data-act="close" aria-label="Stäng">' + ic('x') + '</button></header><div class="sbody"></div><div class="sfoot"></div>';
+  const body = $('.sbody', sh), same = W.shown === W.i, first = W.shown < 0, dl = $('.days', body), keep = same || keepScroll ? [body.scrollTop, dl ? dl.scrollLeft : 0] : null;
+  $('#sheetTitle').textContent = st === 'done' && W.kind === 'order' ? 'Beställt' : st === 'done' ? (W.kind === 'move' ? 'Flyttad' : 'Bokat') : TITLES[st];
+  $('#sheetSub').textContent = sub;
+  body.className = 'sbody' + (same || first ? '' : W.i >= W.shown ? ' fwd' : ' back');
+  body.innerHTML = { what: stepWhat, when: stepWhen, who: stepWho, cart: stepCart, mine: stepMine, done: stepDone }[st]();
+  if (keep) { body.scrollTop = keep[0]; const d2 = $('.days', body); if (d2) d2.scrollLeft = keep[1]; }
+  else { body.scrollTop = 0; const sel = $('.day[aria-pressed=true]', body); if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest', inline: 'center' }); }
+  const canBack = W.i > 0 && st !== 'done';
+  let next = st === 'who' ? (W.kind === 'order' ? 'Lägg beställningen' : 'Boka ' + E.svc(W.svc).name.toLowerCase()) : st === 'when' && W.kind === 'move' ? 'Flytta hit' : 'Fortsätt';
+  if (st === 'cart' && !S.cart.length) next = null;
+  $('.sfoot', sh).innerHTML = (canBack ? '<button class="btn line" data-act="back"><span>Tillbaka</span></button>' : '') +
+    (st === 'done' ? '<button class="btn ink" data-act="close"><span>Stäng</span></button>' : st === 'mine' ? '<button class="btn line" data-act="close"><span>Stäng</span></button>' :
+      next ? '<button class="btn" data-act="next"' + (W.busy ? ' disabled' : '') + '><span>' + next + '</span></button>' : '<button class="btn ink" data-act="toshop"><span>Till däcken</span></button>');
+  const nuts = st === 'done' ? 5 : Math.round(Math.max(0, pos) / Math.max(1, progSteps.length) * 5);
+  requestAnimationFrame(() => { if (!sh.firstChild) return; $$('.nut', sh).forEach((n, k) => { n.style.transitionDelay = (k * 70) + 'ms'; n.classList.toggle('on', k < nuts); }); const hb = $('.hub', sh); if (hb) hb.classList.toggle('done', st === 'done'); });
+  const wasShown = same; W.shown = W.i;
+  if (W.err && W.err.field) { const f = { reg: '#fReg', name: '#fName', phone: '#fPhone', email: '#fEmail' }[W.err.field], el = f && $(f, body); if (el) { el.focus(); return; } const er = $('.ferr', body); if (er && er.scrollIntoView) er.scrollIntoView({ block: 'nearest' }); return; }
+  if (!wasShown) { try { $('#sheetTitle').focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+}
+function grab() {
+  if (!W) return;
+  [['Reg', 'reg'], ['Name', 'name'], ['Phone', 'phone'], ['Email', 'email'], ['Note', 'note']].forEach(([k, f]) => { const e = $('#f' + k); if (e) W[f] = e.value.trim(); });
+  const fit = $('#fFit'); if (fit) W.fit = fit.checked;
+}
+function go(stepName) { const k = W.steps.indexOf(stepName); if (k >= 0) { W.i = k; W.err = null; renderSheet(); } }
+function nextStep() {
+  if (!W || W.busy) return;
+  grab(); W.err = null; const st = W.steps[W.i], now = NOW();
+  if (st === 'what') {
+    if (!W.svc) W.err = { field: 'svc', err: E.MSG.svc };
+    else if (!E.normReg(W.reg).ok) W.err = { field: 'reg', err: E.MSG.reg };
+    else W.reg = E.normReg(W.reg).reg;
   }
-  if(st==='cart'){title='Varukorgen';
-    if(!S.cart.length){b='<p style="color:var(--smoke)">Här är det tomt. Ställ in din dimension under Köp däck och lägg till däcken du vill ha.</p>';next=null}
-    else{b=S.cart.map(function(it,k){var p=prod(it.pid);return '<div class="citem"><div><b>'+p.brand+' '+p.model+'</b><div class="small" style="color:var(--smoke)">'+it.dim+', '+typeName(p.type).toLowerCase()+'</div></div><div style="text-align:right;font-weight:800">'+kr(price(p,it.dim)*it.qty)+'</div>'+
-        '<div class="qty"><button data-act="qty" data-k="'+k+'" data-d="-1" aria-label="Minska antal">−</button><span>'+it.qty+' st</span><button data-act="qty" data-k="'+k+'" data-d="1" aria-label="Öka antal">+</button></div><div></div></div>'}).join('')+
-      '<label class="check"><input type="checkbox" id="fFit" '+(W.fit?'checked':'')+'><span><b>Montering och balansering, '+kr(FIT)+'</b><br><span class="small" style="color:var(--smoke)">Du väljer tid i nästa steg. Utan montering hämtar du däcken i verkstaden.</span></span></label>'+
-      '<div class="sum"><div class="tot"><span>Betalas i verkstaden</span><span>'+kr(cartTotal()+(W.fit?FIT:0))+'</span></div></div>';
+  if (st === 'cart') { if (!S.cart.length) return; if (!W.fit) { go('who'); return; } }
+  if (st === 'when') {
+    if (!W.time) W.err = { field: 'time', err: E.MSG.time };
+    else if (W.kind === 'move') { commitMove(); return; }
+  }
+  if (st === 'who') { commit(); return; }
+  if (W.err) { renderSheet(true); return; }
+  W.i++; renderSheet();
+}
+function lock(on) { W.busy = on; const b = $('.sfoot [data-act=next]'); if (b) { b.disabled = on; b.classList.toggle('busy', on); } }
+function commit() {
+  lock(true);
+  store.fresh();  // another tab may have taken the slot since this one was drawn
+  const now = NOW(), q = { svc: W.svc, reg: W.reg, model: W.model, date: W.date, time: W.time, name: W.name, phone: W.phone, email: W.email, note: W.note, extras: W.extras };
+  const r = W.kind === 'order' ? E.order(S, Object.assign({}, q, { fit: W.fit }), now) : E.book(S, q, now);
+  W.busy = false;
+  if (!r.ok) {
+    W.err = { field: r.field, err: r.err };
+    if (r.field === 'time') { W.time = null; go('when'); W.err = { field: 'time', err: r.err }; renderSheet(true); }
+    else if (r.field === 'cart') go('cart');
+    else renderSheet(true);
+    renderSite(); return;
+  }
+  store.save();
+  me.set({ name: r.customer.name, phone: r.customer.phone, email: r.customer.email || '', reg: r.booking ? r.booking.reg : W.reg });
+  W.name = r.customer.name; W.phone = r.customer.phone;
+  W.result = r; W.i = W.steps.length - 1; renderSheet(); renderSite();
+  if (wheel) wheel.kick(10);
+  if (window.NKAdmin && !$('#admin').hidden) window.NKAdmin.render();
+}
+function commitMove() {
+  lock(true); store.fresh();
+  const r = E.move(S, W.moveId, W.date, W.time, NOW()); W.busy = false;
+  if (!r.ok) { W.time = null; W.err = { field: 'time', err: r.err }; renderSheet(true); return; }
+  store.save(); W.result = { booking: r.booking }; W.i = W.steps.length - 1; renderSheet(); renderSite(); toast('Tiden är flyttad till ' + E.when(r.booking.date, r.booking.time, NOW()));
+}
+function downloadIcs(b) {
+  const blob = new Blob([E.ics(b)], { type: 'text/calendar;charset=utf-8' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'NK-bokning-' + b.id + '.ics'; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+/* ---------- views: customer site and Verkstaden ---------- */
+function setView(v) { vt(() => setViewNow(v)); }
+function setViewNow(v) {
+  if (W) closeFlow();
+  $('#site').hidden = v !== 'site'; $('#admin').hidden = v !== 'admin';
+  document.body.classList.toggle('adm', v === 'admin');
+  $$('[data-view]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.view === v));
+  if (wheel && wheel.setVisible) wheel.setVisible(v === 'site');
+  if (v === 'admin' && window.NKAdmin) window.NKAdmin.render();
+  window.scrollTo(0, 0);
+  if (v === 'site') { renderSite(); if (wheel) { measure(); storyUI(); } }
+}
+
+/* ---------- one click handler for the whole page ---------- */
+const cyc = (arr, v, d) => { const i = arr.indexOf(v) + d; return arr[(i + arr.length) % arr.length]; };
+document.addEventListener('click', (e) => {
+  const v = e.target.closest('[data-view]'); if (v) { setView(v.dataset.view); return; }
+  if (e.target.id === 'scrim') { closeFlow(); return; }
+  const el = e.target.closest('[data-act]'); if (!el || el.closest('#admin')) return;
+  const a = el.dataset.act, d = el.dataset;
+  switch (a) {
+    case 'demox': document.documentElement.classList.add('nodemo'); try { sessionStorage.setItem('nk-demox', '1'); } catch (x) { /* ignore */ } measure(); storyUI(); toast('Dold. Verkstaden når du med Shift+V eller loggan längst ner.'); break;
+    case 'book': closeCard(); openFlow('book', { svc: d.svc || null, date: d.date, time: d.time }); break;
+    case 'season': setSeason(d.v); break;
+    case 'hot': openHot(d.v); break;
+    case 'cardx': closeCard(); break;
+    case 'cart': openFlow('order'); break;
+    case 'mine': closeCard(); if (W) { if (W.kind !== 'mine') { Object.assign(W, { kind: 'mine', steps: STEPS.mine.slice(), i: 0, shown: -1, err: null, ask: null, list: W.phone ? E.mine(S, W.phone, NOW()) : null }); renderSheet(); } } else openFlow('mine'); break;
+    case 'finish': $$('.sw').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === d.v)); burst(); if (wheel) wheel.setFinish(d.v); break;
+    case 'step': { const arr = { w: E.WS, p: E.PS, r: E.RS }[d.k]; F[d.k] = cyc(arr, F[d.k], +d.d); $('#sizeNote').hidden = true; renderSize(+d.d, d.k); renderTyres(); const nb = $('[data-act=step][data-k=' + d.k + '][data-d="' + d.d + '"]'); if (nb) nb.focus({ preventScroll: true }); break; }
+    case 'add': {
+      store.fresh(); const r = E.cartAdd(S, d.pid, dimStr(), 4); store.save(); renderTyres();
+      const cb = $('#cartn'); cb.classList.remove('pop'); void cb.offsetWidth; cb.classList.add('pop');
+      toast(r.capped ? 'Max ' + E.MAXQ + ' däck av samma modell. Ring oss för fler.' : '4 däck i varukorgen');
+      const btn = $('[data-act=add][data-pid=' + d.pid + ']'); if (btn) btn.classList.add('added');
+      break;
     }
-  }
-  if(st==='time'){title=W.kind==='order'?'När ska vi montera?':'Välj en tid';
-    var days=workdays(10);if(!W.date){W.date=days.filter(function(d){var c=load(d);return daySlots(d).some(function(t){return slotFree(d,t,flowMins(),c)})})[0]||days[0]}
-    var c=load(W.date);
-    b='<div class="days">'+days.map(function(d){var x=D(d);return '<button class="day" data-act="day" data-v="'+d+'" aria-pressed="'+(W.date===d)+'"><span>'+(d===TODAY?'idag':WD[x.getDay()])+'</span><b>'+x.getDate()+'</b><span>'+MON[x.getMonth()]+'</span></button>'}).join('')+'</div>'+
-      '<div class="slots">'+daySlots(W.date).map(function(t){var ok=slotFree(W.date,t,flowMins(),c);return '<button class="slot" data-act="slot" data-v="'+t+'" '+(ok?'':'disabled aria-label="'+t+' är upptagen"')+' aria-pressed="'+(W.time===t)+'">'+t+'</button>'}).join('')+'</div>'+
-      (W.time?'<div class="picked">'+ic('check')+'Vald tid: '+nice(W.date)+' klockan '+W.time+'</div>':'')+
-      '<p class="small" style="margin-top:12px;color:var(--smoke)">Överstrukna tider är upptagna. Jobbet tar cirka '+flowMins()+' minuter.</p>';
-  }
-  if(st==='details'){title='Dina uppgifter';next=W.kind==='order'?'Lägg beställningen':'Boka tiden';
-    var sum='<div class="sum">';
-    if(W.kind!=='order'){sum+='<div><span>'+svc(W.svc).name+'</span><span>'+pTxt(svc(W.svc))+'</span></div>'+W.extras.map(function(x){return '<div><span>'+x.n+'</span><span>'+kr(x.p)+'</span></div>'}).join('')+'<div><span>Bil</span><span>'+esc(W.reg.toUpperCase())+'</span></div>';
-      if(W.extras.length)sum+='<div class="tot"><span>Summa</span><span>'+kr(svc(W.svc).price+W.extras.reduce(function(a,x){return a+x.p},0))+'</span></div>'}
-    else sum+='<div><span>'+S.cart.reduce(function(a,i){return a+i.qty},0)+' däck'+(W.fit?' med montering':'')+'</span><span>'+kr(cartTotal()+(W.fit?FIT:0))+'</span></div>';
-    if(W.date&&W.time&&(W.kind==='booking'||W.fit))sum+='<div><span>Tid</span><span>'+nice(W.date)+' kl. '+W.time+'</span></div>';
-    sum+='</div>';
-    b=sum+'<label class="field"><span>Namn</span><input id="fName" value="'+esc(W.name)+'" autocomplete="name"></label>'+
-      '<label class="field"><span>Mobilnummer</span><input id="fPhone" value="'+esc(W.phone)+'" inputmode="tel" autocomplete="tel"></label>'+
-      (W.kind==='order'&&W.fit?'<label class="field"><span>Regnummer</span><input id="fReg" value="'+esc(W.reg)+'" maxlength="7" style="text-transform:uppercase"></label>':'')+
-      '<label class="field"><span>Mejladress (frivilligt)</span><input id="fEmail" type="email" value="'+esc(W.email)+'" inputmode="email" autocomplete="email"></label>'+
-      '<label class="field"><span>Meddelande till verkstaden (frivilligt)</span><textarea id="fNote" rows="2">'+esc(W.note)+'</textarea></label>'+
-      '<p class="small" style="color:var(--smoke)">Du betalar på plats. I den skarpa versionen går det också med Swish eller Klarna.</p>';
-  }
-  if(st==='done'){title=W.kind==='order'?'Beställt':'Bokat';var r=W.result;
-    b='<div class="done"><h3 class="d">Tack '+esc(W.name.split(' ')[0])+'!</h3><div class="ref d">'+r.ref+'</div>'+
-      '<p>'+(r.when?'Välkommen '+nice(r.date)+' klockan '+r.time+' till Brynäsgatan 67.':'Vi hör av oss när däcken är klara att hämta.')+'</p>'+
-      '<p class="small" style="margin-top:14px;color:var(--smoke)">I den skarpa versionen får kunden ett sms nu och en påminnelse dagen innan. Öppna Verkstaden för att se hur ärendet landar hos er.</p></div>';
-    next=null;
-  }
-  var sh=$('#sheet');
-  if(!sh.firstChild)sh.innerHTML='<header>'+hubSvg(0,false)+'<h3 class="d" id="sheetTitle" tabindex="-1"></h3><button class="x" data-act="close" aria-label="Stäng">'+ic('x')+'</button></header><div class="sbody"></div><div class="sfoot"></div>';
-  var body=$('.sbody',sh),same=W.shown===W.i,dl=$('.days',body),keep=same?[body.scrollTop,dl?dl.scrollLeft:0]:null,dir=W.i>=W.shown?' fwd':' back',first=W.shown<0;
-  $('#sheetTitle').textContent=title;
-  body.className='sbody'+(same||first?'':dir);
-  body.innerHTML=(W.err?'<p class="err" role="alert">'+W.err+'</p>':'')+b;
-  if(keep){body.scrollTop=keep[0];var d2=$('.days',body);if(d2)d2.scrollLeft=keep[1]}else{body.scrollTop=0;var sel=$('.day[aria-pressed=true]',body);if(sel&&sel.scrollIntoView)sel.scrollIntoView({block:'nearest',inline:'center'})}
-  $('.sfoot',sh).innerHTML=(canBack?'<button class="btn line on-light" data-act="back"><span>Tillbaka</span></button>':'')+
-    (st==='done'?'<button class="btn" data-act="toadmin"><span>Öppna Verkstaden</span></button>':(next?'<button class="btn" data-act="next"><span>'+next+'</span></button>':'<button class="btn ink" data-act="close"><span>Stäng</span></button>'));
-  // nuts tighten one at a time: flip the classes after the paint so the transition runs
-  requestAnimationFrame(function(){if(!sh.firstChild)return;[].forEach.call(sh.querySelectorAll('.nut'),function(n,k){n.style.transitionDelay=(k*70)+'ms';n.classList.toggle('on',k<nuts)});$('.hub',sh).classList.toggle('done',st==='done')});
-  var pk=$('.picked',body);if(pk&&pk.scrollIntoView)pk.scrollIntoView({block:'nearest'});
-  if(!same){W.shown=W.i;if(W.err){}else try{$('#sheetTitle').focus({preventScroll:true})}catch(e){}}
-}
-function grab(){['Reg','Model','Name','Phone','Note','Email'].forEach(function(k){var e=$('#f'+k);if(e)W[k.toLowerCase()]=e.value.trim()});var f=$('#fFit');if(f)W.fit=f.checked}
-function nextStep(){
-  grab();W.err='';var st=W.steps[W.i];
-  if(st==='service'&&!W.svc)W.err='Välj vad du vill ha hjälp med.';
-  if((st==='car'||st==='quick')&&W.reg.replace(/\s/g,'').length<5)W.err='Skriv bilens regnummer, till exempel ABC 123.';
-  else if(st==='quick'&&!W.svc)W.err='Välj vad det gäller.';
-  if(st==='time'&&!W.time)W.err='Välj en ledig tid.';
-  if(st==='details'){
-    if(W.name.length<2)W.err='Skriv ditt namn så vi vet vem som kommer.';
-    else if(W.phone.replace(/\D/g,'').length<7)W.err='Skriv ett mobilnummer så vi kan nå dig.';
-    else if(W.kind==='order'&&W.fit&&W.reg.replace(/\s/g,'').length<5)W.err='Skriv regnumret på bilen som ska få däcken.';
-  }
-  if(W.err){renderSheet();return}
-  if(st==='cart'&&!W.fit){W.i=2;renderSheet();return}
-  if(st==='details'){commit();W.i=W.steps.length-1;renderSheet();if(wheel)wheel.kick(10);return}
-  W.i++;renderSheet();
-}
-function commit(){
-  var reg=W.reg.toUpperCase().replace(/\s+/g,'').replace(/^(.{3})/,'$1 ');
-  var c=S.customers.filter(function(x){return x.phone.replace(/\D/g,'')===W.phone.replace(/\D/g,'')})[0];
-  if(!c){c={id:'c'+(S.customers.length+1),name:W.name,phone:W.phone,since:now.getFullYear(),cars:[],hotel:null,isNew:true};S.customers.unshift(c)}
-  if(reg.length>4&&!c.cars.some(function(x){return x.reg===reg}))c.cars.push({reg:reg,model:W.model||'Modell hämtas från regnumret'});
-  var res={};
-  if(W.kind==='order'){
-    var o={id:'W-'+(S.oseq++),custId:c.id,date:TODAY,items:S.cart.slice(),fit:W.fit,total:cartTotal()+(W.fit?FIT:0),status:W.fit?'Väntar på montering':'Plockas',isNew:true};
-    S.orders.unshift(o);
-    S.cart.forEach(function(it){var k=it.pid+'|'+it.dim;S.stock[k]=Math.max(0,stockOf(k)-it.qty)});
-    S.cart=[];res.ref=o.id;
-  }
-  if(W.kind!=='order'||W.fit){
-    var sid=W.kind==='order'?'montering':W.svc;
-    var bk={id:'NK-'+(S.seq++),custId:c.id,reg:reg,model:W.model,svc:sid,mins:svc(sid).mins,date:W.date,time:W.time,status:S.auto?'Bekräftad':'Ny',note:(W.cfg?'Valt i 3D: '+W.cfg.rim+' fälg, '+W.cfg.tyre.toLowerCase()+(W.cfg.paint?', '+W.cfg.paint:'')+'. ':'')+(W.extras&&W.extras.length?'Tillval: '+W.extras.map(function(x){return x.n}).join(', ')+'. ':'')+W.note,src:W.kind==='order'?'Webshop':'Webben',isNew:true};
-    S.bookings.push(bk);res.ref=res.ref||bk.id;res.when=true;res.date=W.date;res.time=W.time;
-  }
-  if(W.email)c.email=W.email;
-  W.result=res;save();renderTyres();
-}
-
-/* ---------- workshop ---------- */
-var A={tab:'idag',q:'',cust:null};
-var TABS=[['idag','Idag'],['bokningar','Bokningar'],['kunder','Kunder'],['hotell','Däckhotell'],['ordrar','Ordrar'],['lager','Lager'],['logg','Logg']];
-// Where feedback and error reports go. Change here if the repository moves.
-var REPO='https://github.com/ghostdesk0-oss/nk-bil-dack';
-function issueUrl(tpl,title,fields){var q='template='+tpl+'&title='+encodeURIComponent(title);for(var k in fields)q+='&'+k+'='+encodeURIComponent(fields[k]);return REPO+'/issues/new?'+q}
-var NEXT={'Ny':'Bekräfta','Bekräftad':'Starta jobbet','Pågår':'Markera som klar'};
-var NEXTS={'Ny':'Bekräftad','Bekräftad':'Pågår','Pågår':'Klar'};
-var LIFTD={skifte:1,montering:1,punktering:1,hotell:1,nyadack:1,hjulinst:1};
-var liftOf=function(s){return LIFTD[s]?'Lyft 1 – Däck':'Lyft 2 – Verkstad'};
-var regp=function(r){return '<span class="regp"><i>S</i>'+esc(r)+'</span>'};
-function bRow(b,showDate){
-  var c=cust(b.custId)||{name:'Okänd'};
-  var cfg=(b.note||'').match(/^Valt i 3D: ([^.]+)\./);
-  var acts=(NEXT[b.status]?'<button class="btn sm ink" data-act="adv" data-id="'+b.id+'"><span>'+NEXT[b.status]+'</span></button>':'')+
-    ((b.status==='Bekräftad'||b.status==='Pågår')?'<button class="btn sm" data-act="sms" data-id="'+b.id+'"><span>Markera klar &amp; skicka SMS</span></button>':'');
-  return '<div class="row'+(b.status==='Ny'?' new':'')+'"><div class="t">'+b.time+(showDate?'<small>'+nice(b.date)+'</small>':'<small>'+b.mins+' min</small>')+'</div>'+
-    '<div><div><button class="linkb" data-act="cust" data-id="'+b.custId+'">'+esc(c.name)+'</button> '+regp(b.reg)+(b.isNew&&b.status==='Ny'?' <span class="pill Ny">NY BOKNING</span>':'')+'</div>'+
-    '<div class="what">'+svc(b.svc).name+', bokad via '+b.src.toLowerCase()+(b.note?'. ”'+esc(b.note)+'”':'')+'</div>'+
-    '<div class="what">'+liftOf(b.svc)+(c.hotel?' · Hylla '+c.hotel.pos:'')+(cfg?' · '+esc(cfg[1]):'')+'</div></div>'+
-    '<span class="pill '+b.status+'">'+b.status+'</span>'+
-    (acts?'<div class="ract">'+acts+'</div>':'')+'</div>';
-}
-function custRows(list){
-  return list.length?list.map(function(c){return '<div class="lrow"><div><button class="linkb" data-act="cust" data-id="'+c.id+'">'+esc(c.name)+'</button>'+(c.isNew?' <span class="pill Ny">Ny</span>':'')+'<div class="sub">'+esc(c.phone)+' '+c.cars.map(function(x){return regp(x.reg)}).join(' ')+'</div></div><div class="r sub">'+(c.hotel?'Hylla '+c.hotel.pos:'')+'</div></div>'}).join(''):'<p style="padding:16px;color:var(--smoke)">Ingen kund matchar. Prova med färre tecken.</p>';
-}
-var byTime=function(a,b){return (a.date+a.time).localeCompare(b.date+b.time)};
-function renderAdmin(){
-  var ac=$('#autoC');if(ac)ac.checked=!!S.auto;
-  var nNew=S.bookings.filter(function(b){return b.status==='Ny'}).length;
-  $('#tabs').innerHTML=TABS.map(function(t){return '<button role="tab" data-act="tab" data-v="'+t[0]+'" aria-selected="'+(A.tab===t[0])+'">'+t[1]+(t[0]==='bokningar'&&nNew?'<b>'+nNew+'</b>':'')+'</button>'}).join('');
-  var h='',days=workdays(5),day0=days[0];
-  if(A.cust){
-    var c=cust(A.cust),bs=S.bookings.filter(function(b){return b.custId===c.id}).sort(byTime),os=S.orders.filter(function(o){return o.custId===c.id});
-    h='<button class="linkb" data-act="custback">Tillbaka till kunder</button><h2 class="d" style="margin-top:14px">'+esc(c.name)+'</h2>'+
-      '<div class="cols2" style="margin-top:18px"><div class="panel"><h3>Bokningar</h3>'+(bs.length?bs.map(function(b){return bRow(b,true)}).join(''):'<p style="padding:16px;color:var(--smoke)">Inga bokningar än.</p>')+'</div>'+
-      '<div class="panel"><h3>Kunduppgifter</h3><dl class="kv"><dt>Mobil</dt><dd>'+esc(c.phone)+'</dd><dt>Kund sedan</dt><dd>'+c.since+'</dd>'+
-      c.cars.map(function(x){return '<dt>Bil</dt><dd>'+regp(x.reg)+' '+esc(x.model)+'</dd>'}).join('')+
-      '<dt>Däckhotell</dt><dd>'+(c.hotel?'Hylla '+c.hotel.pos+', '+c.hotel.tyres.toLowerCase()+', '+c.hotel.depth.replace('.',',')+' mm':'Nej')+'</dd>'+
-      '<dt>Ordrar</dt><dd>'+(os.length?os.map(function(o){return o.id+', '+kr(o.total)}).join('<br>'):'Inga')+'</dd></dl></div></div>';
-  }
-  else if(A.tab==='idag'){
-    var td=S.bookings.filter(function(b){return b.date===day0}).sort(byTime);
-    var newB=S.bookings.filter(function(b){return b.status==='Ny'}).sort(byTime);
-    var fitO=S.orders.filter(function(o){return o.status==='Väntar på montering'}).length;
-    var low=Object.keys(S.stock).filter(function(k){return S.stock[k]<4}).length;
-    var hotelLow=S.customers.filter(function(c){return c.hotel&&+c.hotel.depth<4}).length;
-    var open=420,close=closeHour(day0)*60,cap=2*(close-open),booked=td.reduce(function(a,b){return a+b.mins},0),occ=Math.round(booked/cap*100);
-    var est=td.reduce(function(a,b){return a+(svc(b.svc).price||0)},0);
-    var perH={};td.forEach(function(b){for(var m=toMin(b.time);m<toMin(b.time)+b.mins;m+=60){var h2=Math.floor(m/60);perH[h2]=(perH[h2]||0)+1}});
-    var bh=Object.keys(perH).sort(function(a,b){return perH[b]-perH[a]})[0];
-    var hr=new Date().getHours(),greet=hr<10?'God morgon':hr<17?'Hej':'God kväll',isT=day0===TODAY,dayW=isT?'Idag':'På '+WDL[D(day0).getDay()];
-    var L=[];
-    L.push(['',dayW+' har ni '+td.length+' '+(td.length===1?'bokning':'bokningar')+(td.length?', den första klockan '+td[0].time+'.':'.')]);
-    L.push(newB.length?['hot',newB.length+' '+(newB.length===1?'webbokning väntar':'webbokningar väntar')+' på att ni bekräftar.']:['ok','Alla webbokningar är bekräftade.']);
-    L.push(['','Lyftarna är bokade till '+occ+' procent'+(bh?', mest tryck runt klockan '+bh+'.':'.')]);
-    if(fitO)L.push(['hot',fitO+' '+(fitO===1?'webborder ska':'webbordrar ska')+' monteras.']);
-    if(low)L.push(['',low+' däck i lagret har färre än fyra kvar.']);
-    if(hotelLow)L.push(['',hotelLow+' kunder i däckhotellet har under 4 mm mönster. Bra läge att erbjuda nya däck.']);
-    // lift lanes: give each booking the first lift that is free
-    var lanes=[[],[]],ends=[0,0];td.forEach(function(b){var s0=toMin(b.time),li=ends[0]<=s0?0:ends[1]<=s0?1:(ends[0]<=ends[1]?0:1);lanes[li].push(b);ends[li]=s0+b.mins});
-    var span=close-open,hrs=(close-open)/60,pct=function(m){return ((m-open)/span*100).toFixed(2)+'%'},nm=new Date().getHours()*60+new Date().getMinutes();
-    var tl='<div class="tlg"><div class="tlh" style="grid-template-columns:repeat('+hrs+',1fr)">'+Array.apply(null,{length:hrs}).map(function(_,k){return '<span>'+pad(7+k)+'</span>'}).join('')+'</div>'+
-      lanes.map(function(ln,k){return '<div class="lane"><span>Lyft '+(k+1)+'</span><div class="track" style="--h:'+hrs+'">'+ln.map(function(b,n){var c=cust(b.custId)||{name:''};return '<button class="blk '+b.status+'" data-act="cust" data-id="'+b.custId+'" style="left:'+pct(toMin(b.time))+';width:calc('+(b.mins/span*100).toFixed(2)+'% - 4px);animation-delay:'+(n*50)+'ms" title="'+esc(c.name)+'"><b>'+b.time+' '+esc(b.reg)+'</b><span>'+svc(b.svc).name+'</span></button>'}).join('')+'</div></div>'}).join('')+
-      (isT&&nm>open&&nm<close?'<i class="nowl" style="left:calc(62px + (100% - 62px) * '+((nm-open)/span).toFixed(4)+')"></i>':'')+'</div>';
-    var days=workdays(5),max=Math.max.apply(null,days.map(function(d){return S.bookings.filter(function(b){return b.date===d}).length}))||1;
-    var freeN=daySlots(day0).filter(function(t){return slotFree(day0,t,30,load(day0))}).length;
-    var hotelOcc=304+S.customers.filter(function(c){return c.hotel}).length,hotelCap=360;
-    var dropins=td.filter(function(b){return b.svc==='punktering'}).length;
-    h='<section class="brief"><p class="when">'+WDL[now.getDay()].replace(/^./,function(c){return c.toUpperCase()})+' '+now.getDate()+' '+MON[now.getMonth()]+'</p><h2 class="d">'+greet+', Nicklas</h2><ul>'+L.map(function(l){return '<li class="'+l[0]+'">'+l[1]+'</li>'}).join('')+'</ul><p class="note">Sammanfattningen räknas fram ur bokningarna, ordrarna och lagret just nu.</p></section>'+
-      '<div class="kpis"><div class="kpi"><b>'+td.length+'</b><span>Dagens bokningar</span></div><div class="kpi"><b>'+freeN+'</b><span>Lediga tider idag</span></div>'+
-      '<div class="kpi"><b>'+hotelOcc+' / '+hotelCap+'</b><span>Däckhotell, platser (exempel)</span></div><div class="kpi'+(dropins?' hot':'')+'"><b>'+dropins+'</b><span>Akuta drop-in</span></div></div>'+
-      '<div class="panel tl"><h3>Lyftarna '+(isT?'idag':nice(day0))+'</h3><div class="tlw">'+(td.length?tl:'<p style="color:var(--smoke)">Inga bokningar. Nya hamnar här så fort en kund bokar.</p>')+'</div></div>'+
-      '<div class="cols2"><div class="panel"><h3>Att bekräfta</h3>'+(newB.length?newB.map(function(b){return bRow(b,true)}).join(''):'<p style="padding:16px;color:var(--smoke)">Inget att bekräfta just nu.</p>')+'</div>'+
-      '<div class="panel"><h3>Kommande dagar</h3><div class="bars">'+days.map(function(d,i){var n=S.bookings.filter(function(b){return b.date===d}).length;return '<div><b>'+n+'</b><i style="height:'+Math.round(n/max*100)+'%;animation-delay:'+(i*60)+'ms"></i>'+WD[D(d).getDay()]+'</div>'}).join('')+'</div></div></div>';
-  }
-  else if(A.tab==='bokningar'){
-    var all=S.bookings.filter(function(b){return b.date>=TODAY}).sort(function(a,b){return (b.status==='Ny')-(a.status==='Ny')||byTime(a,b)});
-    h='<h2 class="d">Bokningar</h2><p style="color:var(--smoke);margin-top:6px">Nya bokningar från webben hamnar överst tills ni bekräftat dem.</p><div class="panel" style="margin-top:18px">'+all.map(function(b){return bRow(b,true)}).join('')+'</div>';
-  }
-  else if(A.tab==='kunder'){
-    var q=A.q.toLowerCase().replace(/\s/g,''),list=S.customers.filter(function(c){return !q||(c.name+c.phone+c.cars.map(function(x){return x.reg}).join('')).toLowerCase().replace(/\s/g,'').indexOf(q)>-1});
-    h='<h2 class="d">Kunder</h2><input class="search" id="q" placeholder="Sök på namn, mobil eller regnummer" aria-label="Sök kund" value="'+esc(A.q)+'">'+
-      '<div class="panel" id="custList">'+custRows(list)+'</div>';
-  }
-  else if(A.tab==='hotell'){
-    var hs=S.customers.filter(function(c){return c.hotel});
-    h='<h2 class="d">Däckhotell</h2><p style="color:var(--smoke);margin-top:6px">'+hs.length+' uppsättningar i förvaring. Hjul under 4 mm flaggas inför nästa säsong.</p><div class="panel" style="margin-top:18px">'+
-      hs.map(function(c){var low=+c.hotel.depth<4;return '<div class="lrow"><div><b>Hylla '+c.hotel.pos+'</b> <button class="linkb" data-act="cust" data-id="'+c.id+'">'+esc(c.name)+'</button><div class="sub">'+regp(c.cars[0].reg)+' '+c.hotel.tyres+'</div></div><div class="r">'+c.hotel.depth.replace('.',',')+' mm'+(low?'<br><span class="pill Ny">Byt snart</span>':'')+'</div></div>'}).join('')+'</div>';
-  }
-  else if(A.tab==='ordrar'){
-    h='<h2 class="d">Webbordrar</h2><div class="panel" style="margin-top:18px">'+
-      S.orders.map(function(o){var c=cust(o.custId)||{name:''};return '<div class="lrow'+(o.isNew&&o.status!=='Utlämnad'?' new':'')+'"><div><b>'+o.id+'</b> '+esc(c.name)+'<div class="sub">'+o.items.map(function(i){var p=prod(i.pid);return i.qty+' st '+p.brand+' '+p.model+', '+i.dim}).join('<br>')+(o.fit?'<br>Med montering':'')+'<br><span class="pill'+(o.status==='Utlämnad'?' Klar':'')+'" style="margin-top:6px">'+o.status+'</span></div></div><div class="r">'+kr(o.total)+'</div>'+(o.status!=='Utlämnad'?'<div class="full"><button class="btn sm ink" data-act="odone" data-id="'+o.id+'"><span>Lämna ut</span></button></div>':'')+'</div>'}).join('')+'</div>';
-  }
-  else if(A.tab==='lager'){
-    var keys=Object.keys(S.stock).sort();
-    h='<h2 class="d">Lager</h2><p style="color:var(--smoke);margin-top:6px">Saldot räknas ner automatiskt när någon handlar på webben.</p><div class="panel" style="margin-top:18px">'+
-      keys.map(function(k){var p=prod(k.split('|')[0]),d=k.split('|')[1],n=S.stock[k];return '<div class="lrow"><div><b>'+p.brand+'</b> '+p.model+'<div class="sub">'+d+', '+kr(price(p,d))+'</div></div><div class="r"><span class="qty"><button data-act="stock" data-k="'+k+'" data-d="-1" aria-label="Minska saldo">−</button><span style="min-width:26px;text-align:center;'+(n<5?'color:var(--red-deep)':'')+'">'+n+'</span><button data-act="stock" data-k="'+k+'" data-d="1" aria-label="Öka saldo">+</button></span></div></div>'}).join('')+'</div>';
-  }
-  if(A.tab==='logg'&&!A.cust){
-    var errs=window.NKErr?NKErr.list():[];
-    h='<h2 class="d">Logg</h2><p style="color:var(--smoke);margin-top:6px">Fel som händer på den här enheten sparas här. Ett tryck gör dem till ett ärende som vi rättar och lär oss av.</p>'+
-      '<div class="cols2" style="margin-top:18px"><div class="panel"><h3>Fel på den här enheten</h3>'+
-      (errs.length?errs.map(function(e){var body=e.m+'\n'+e.s+'\nVersion '+e.v+', skärm '+e.w+'\n'+navigator.userAgent+'\n'+e.t;
-        return '<div class="lrow"><div><b>'+esc(e.m)+'</b><div class="sub">'+esc(e.s)+'<br>'+esc(e.t.replace('T',' ').slice(0,16))+', version '+esc(e.v)+'</div></div><div class="r"><a class="btn sm ink" href="'+esc(issueUrl('bug.yml','Fel: '+e.m.slice(0,70),{log:body,device:navigator.userAgent.slice(0,120)}))+'" target="_blank" rel="noopener"><span>Skapa ärende</span></a></div></div>'}).join('')+
-        '<div class="lrow"><div></div><div class="r"><button class="linkb" data-act="clearerr">Rensa loggen</button></div></div>'
-      :'<p style="padding:16px;color:var(--smoke)">Inga fel loggade på den här enheten.</p>')+'</div>'+
-      '<div class="panel"><h3>Tyck till</h3><div style="padding:16px;display:grid;gap:12px"><p style="color:var(--smoke)">Något som borde vara annorlunda? Skriv det som du skulle säga det. Det hamnar som ett ärende i projektet.</p>'+
-      '<a class="btn" href="'+esc(REPO+'/issues/new?template=feedback.yml')+'" target="_blank" rel="noopener"><span>Skicka feedback</span></a>'+
-      '<p class="small" style="color:var(--smoke)">Kräver inloggning på GitHub med tillgång till projektet.</p></div></div></div>';
-  }
-  $('#amain').innerHTML=h;
-}
-
-/* ---------- wiring ---------- */
-function setView(v){vt(function(){setViewNow(v)})}
-function setViewNow(v){
-  $('#site').hidden=v!=='site';$('#admin').hidden=v!=='admin';
-  document.body.classList.toggle('adm',v==='admin');
-  [].forEach.call(document.querySelectorAll('[data-view]'),function(b){b.setAttribute('aria-pressed',b.dataset.view===v)});
-  if(v==='admin'){PRODUCTS.forEach(function(p){stockOf(p.id+'|205/55 R16');stockOf(p.id+'|'+dimStr())});renderAdmin()}
-  window.scrollTo(0,0);if(v==='site'&&wheel){measure();storyUI()}
-}
-/* ---------- car configurator ---------- */
-var car=null,CF={cat:'dack',rim:'sport',paint:'obsidian',leds:true,glow:true,view:'front',hwy:false,tip:null};
-var RIMN={sport:'Sport',classic:'Classic',black:'Black Edition'},PAINTN={obsidian:'Obsidian Black',silver:'Nordic Silver',white:'Ice White',midnight:'Midnight Blue'},PAINTC={obsidian:'#0b0b0d',silver:'#9ea4ab',white:'#e6eaee',midnight:'#0d1a3c'};
-var SEAN={sommar:'Sommardäck',friktion:'Friktionsdäck',dubb:'Dubbdäck'},VIEWN={front:'3/4 fram',side:'Sidoprofil',close:'Närbild fälg'};
-var CATS=[['dack','Däck'],['falg','Fälg'],['lack','Lack'],['ljus','Ljus'],['vy','Vy']];
-function renderCfg(flash){
-  $('#ccats').innerHTML=CATS.map(function(c){return '<button role="tab" data-act="ccat" data-v="'+c[0]+'" aria-selected="'+(CF.cat===c[0])+'">'+c[1]+'</button>'}).join('');
-  var o=[],P=function(k,v,l,sel,sw){o.push('<button data-act="copt" data-k="'+k+'" data-v="'+v+'" aria-pressed="'+sel+'">'+(sw?'<i style="--c:'+sw+'"></i>':'')+l+'</button>')};
-  if(CF.cat==='dack')TYPES.forEach(function(t){P('season',t[0],SEAN[t[0]],SEASON===t[0])});
-  if(CF.cat==='falg')['sport','classic','black'].forEach(function(r){P('rim',r,RIMN[r],CF.rim===r)});
-  if(CF.cat==='lack')['obsidian','silver','white','midnight'].forEach(function(p){P('paint',p,PAINTN[p],CF.paint===p,PAINTC[p])});
-  if(CF.cat==='ljus'){P('leds',CF.leds?'0':'1','LED-ljus '+(CF.leds?'på':'av'),CF.leds);P('glow',CF.glow?'0':'1','Underglow '+(CF.glow?'på':'av'),CF.glow)}
-  if(CF.cat==='vy')['front','side','close'].forEach(function(v){P('view',v,VIEWN[v],CF.view===v)});
-  $('#copts').innerHTML=o.join('');
-  $('#csel').innerHTML='Valt<b'+(flash?' class="flash"':'')+'>'+RIMN[CF.rim]+', '+SEAN[SEASON]+'</b>';
-  [].forEach.call(document.querySelectorAll('.ccam button'),function(b){b.setAttribute('aria-pressed',b.dataset.v===CF.view)});
-}
-window.renderCfg=renderCfg;
-function cfgPick(k,v){
-  var keepCat=true;
-  if(k==='season'){setSeason(v);return}
-  if(k==='rim'){CF.rim=v;burst();if(car)car.setRim(v)}
-  if(k==='paint'){CF.paint=v;if(car)car.setPaint(v)}
-  if(k==='leds'){CF.leds=v==='1';if(car)car.setLights(CF.leds)}
-  if(k==='glow'){CF.glow=v==='1';if(car)car.setGlow(CF.glow)}
-  if(k==='view'){CF.view=v;closeTip();if(car)car.view(v)}
-  if(keepCat){var sc=$('#copts').scrollLeft;renderCfg(k==='rim');$('#copts').scrollLeft=sc}
-}
-var TIPS={wheel:['Hjul och balansering','Vi monterar, balanserar och gör hjulinställning här på Brynäs. Däckhotell finns från 895 kr per säsong (exempelpris).','montering','Boka montering'],
-  brake:['Bromsar','Vi byter skivor och belägg och säger vad det kostar innan vi börjar.','verkstad','Boka verkstadstid']};
-function openTip(v,el){
-  if(CF.tip===v){closeTip();return}
-  CF.tip=v;var t=TIPS[v];$('#ctip').innerHTML='<b>'+t[0]+'</b><p>'+t[1]+'</p><button class="btn sm" data-act="book" data-svc="'+t[2]+'"><span>'+t[3]+'</span></button>';
-  $('#ctip').classList.add('on');[].forEach.call(document.querySelectorAll('.cpin'),function(p){p.setAttribute('aria-expanded',p.dataset.v===v)});
-}
-function closeTip(){CF.tip=null;var t=$('#ctip');if(t)t.classList.remove('on');[].forEach.call(document.querySelectorAll('.cpin'),function(p){p.setAttribute('aria-expanded','false')})}
-(function(){
-  var sec=$('#bygg'),stage=$('#cstage'),pins=[].slice.call(document.querySelectorAll('.cpin')),tip=$('#ctip'),km=$('#kmh'),lastKm=-1,started=false;
-  function prog(){var r=sec.getBoundingClientRect(),vh=window.innerHeight,dm=document.querySelector('.demo').offsetHeight;
-    return {q:clamp(1-(r.top-dm)/(vh-dm)),p:clamp(-(r.top-dm)/Math.max(1,r.height-(vh-dm))),r:r}}
-  function extra(){var g=prog();return {az:(1-smooth(g.q))*1.1+g.p*.9,dim:smooth((g.p-.82)/.18)}}
-  function onFrame(){
-    var k=Math.round(car.kmh());if(k!==lastKm){km.textContent=k;lastKm=k}
-    var sr=stage.getBoundingClientRect();
-    pins.forEach(function(p){var pt=car.project(p.dataset.v),show=pt&&pt.ok&&!CF.hwy&&CF.view!=='side'&&pt.y<$('.cdock',stage).offsetTop-8&&pt.y>$('.ctop',stage).offsetHeight+8;
-      p.classList.toggle('on',!!show);if(pt)p.style.transform='translate3d('+pt.x.toFixed(1)+'px,'+pt.y.toFixed(1)+'px,0)';
-      if(CF.tip===p.dataset.v){if(!show&&!CF.hwy){}else if(!show){closeTip()}else{var tw=tip.offsetWidth,th=tip.offsetHeight,x=Math.max(12,Math.min(sr.width-tw-12,pt.x-tw*.5)),y=pt.y-th-26;if(y<64)y=pt.y+30;tip.style.transform='translate3d('+x.toFixed(0)+'px,'+y.toFixed(0)+'px,0)'}}});
-  }
-  function start(){
-    if(started)return;started=true;
-    try{car=window.NKCar&&window.NKCar.mount($('#car'),{season:SEASON,extra:extra,onFrame:onFrame})}catch(e){car=null}
-    if(!car){sec.style.display='none';return}
-    var pad=function(){var sr=stage.getBoundingClientRect(),t=$('.ctop',stage).getBoundingClientRect(),d=$('.cdock',stage).getBoundingClientRect();car.setPad(Math.max(0,t.bottom-sr.top),Math.max(0,sr.bottom-d.top))};
-    pad();window.addEventListener('resize',pad);if(document.fonts)document.fonts.ready.then(pad);
-  }
-  onScrollFns.push(function(){var g=prog();stage.style.setProperty('--dk',smooth((g.p-.86)/.14).toFixed(3));
-    document.documentElement.classList.toggle('incfg',g.q>.6&&g.p<.97&&!$('#site').hidden)});
-  if('IntersectionObserver' in window)new IntersectionObserver(function(e){if(e[0].isIntersecting)start()},{rootMargin:'700px 0px'}).observe(sec);else start();
-  renderCfg();
-})();
-$('#quote').addEventListener('submit',function(e){e.preventDefault();var r=$('#qReg').value.trim();openFlow('quick',{svc:QV,reg:r})});
-/* keep the quick-quote plate in step with the hero scan */
-document.addEventListener('input',function(e){if(e.target.id==='heroReg')$('#qReg').value=e.target.value});
-
-var tT;function toast(m){var t=$('#toast');t.textContent=m;t.classList.remove('on');void t.offsetWidth;t.classList.add('on');clearTimeout(tT);tT=setTimeout(function(){t.classList.remove('on')},2600)}
-/* tactile sound: pure Web Audio synthesis, no files. Muted until the header toggle is switched on. */
-var SND={ctx:null,on:false};
-function audio(){if(!SND.ctx){try{var AC=window.AudioContext||window.webkitAudioContext;SND.ctx=AC?new AC():null}catch(e){SND.ctx=null}}if(SND.ctx&&SND.ctx.state==='suspended')SND.ctx.resume();return SND.ctx}
-function burst(){var c=SND.on&&audio();if(!c)return;var t=c.currentTime,len=.16;
-  var buf=c.createBuffer(1,Math.floor(c.sampleRate*len),c.sampleRate),ch=buf.getChannelData(0);
-  for(var i=0;i<ch.length;i++)ch[i]=(Math.random()*2-1)*Math.pow(1-i/ch.length,2);
-  var src=c.createBufferSource();src.buffer=buf;
-  var f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=1700;f.Q.value=.9;
-  var g=c.createGain();g.gain.setValueAtTime(.22,t);g.gain.exponentialRampToValueAtTime(.001,t+len);
-  src.connect(f);f.connect(g);g.connect(c.destination);src.start(t);
-  var o=c.createOscillator();o.type='square';o.frequency.value=2300;
-  var g2=c.createGain();g2.gain.setValueAtTime(.0001,t);g2.gain.exponentialRampToValueAtTime(.1,t+.015);g2.gain.exponentialRampToValueAtTime(.0001,t+.07);
-  o.connect(g2);g2.connect(c.destination);o.start(t);o.stop(t+.09);
-}
-var HUM=null;
-function humStart(){var c=SND.on&&audio();if(!c||HUM)return;
-  var o=c.createOscillator();o.type='sawtooth';o.frequency.value=36;
-  var o2=c.createOscillator();o2.type='triangle';o2.frequency.value=72;
-  var f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=260;f.Q.value=2;
-  var g=c.createGain();g.gain.value=0;g.gain.linearRampToValueAtTime(.06,c.currentTime+.3);
-  o.connect(f);o2.connect(f);f.connect(g);g.connect(c.destination);o.start();o2.start();HUM={o:o,o2:o2,g:g,c:c};
-}
-function humTick(sp){if(!HUM)return;var s=Math.min(1,Math.abs(sp)/48),t=HUM.c.currentTime;
-  HUM.o.frequency.setTargetAtTime(36+s*52,t,.06);HUM.o2.frequency.setTargetAtTime(72+s*104,t,.06);HUM.g.gain.setTargetAtTime(.03+.08*s,t,.08)}
-function humStop(){if(!HUM)return;var h=HUM;HUM=null;var t=h.c.currentTime;
-  h.g.gain.cancelScheduledValues(t);h.g.gain.setTargetAtTime(0,t,.14);setTimeout(function(){try{h.o.stop();h.o2.stop()}catch(e){}},700)}
-function cyc(arr,v,d){var i=arr.indexOf(v)+d;return arr[(i+arr.length)%arr.length]}
-document.addEventListener('click',function(e){
-  var v=e.target.closest('[data-view]');if(v){setView(v.dataset.view);return}
-  if(e.target.id==='scrim'){closeFlow();return}
-  var el=e.target.closest('[data-act]');if(!el)return;var a=el.dataset.act,d=el.dataset;
-  if(a==='demox'){document.querySelector('.demo').classList.add('off');try{sessionStorage.setItem('nk-demox','1')}catch(x){}measure();storyUI()}
-  else if(a==='book'){closeCard();openFlow('booking',{svc:d.svc})}
-  else if(a==='season')setSeason(d.v);
-  else if(a==='qpick'){QV=d.v;renderCards()}
-  else if(a==='cfgbook'){closeTip();openFlow('quick',{svc:'nyadack',cfg:{rim:RIMN[CF.rim],tyre:SEAN[SEASON],paint:PAINTN[CF.paint]}})}
-  else if(a==='ccat'){CF.cat=d.v;renderCfg()}
-  else if(a==='copt')cfgPick(d.k,d.v);
-  else if(a==='hwy'){CF.hwy=!CF.hwy;el.setAttribute('aria-pressed',CF.hwy);closeTip();if(car)car.setHighway(CF.hwy)}
-  else if(a==='cpin')openTip(d.v,el);
-  else if(a==='hot')openHot(d.v);
-  else if(a==='cardx')closeCard();
-  else if(a==='scanbook'){closeCard();openFlow('booking',{svc:'skifte',reg:REG})}
-  else if(a==='bookhotel'){var xs=[].slice.call(document.querySelectorAll('#hotelOpts input[data-x]:checked')).map(function(i){return {n:i.dataset.n,p:+i.dataset.p}});openFlow('booking',{svc:'hotell',extras:xs})}
-  else if(a==='cart')openFlow('order');
-  else if(a==='finish'){[].forEach.call(document.querySelectorAll('.sw'),function(b){b.setAttribute('aria-pressed',b.dataset.v===d.v)});burst();if(wheel)wheel.setFinish(d.v)}
-  else if(a==='svc'){openSvc=openSvc===d.v?null:d.v;[].forEach.call(document.querySelectorAll('.svc-row'),function(r){var on=r.querySelector('.svc-head').dataset.v===openSvc;r.classList.toggle('open',on);r.querySelector('.svc-head').setAttribute('aria-expanded',on);var bb=r.querySelector('.btn');if(on)bb.removeAttribute('tabindex');else bb.setAttribute('tabindex','-1')})}
-  else if(a==='step'){var arr={w:WS,p:PS,r:RS}[d.k];F[d.k]=cyc(arr,F[d.k],+d.d);renderSize(+d.d,d.k);renderTyres();var nb=document.querySelector('[data-act=step][data-k='+d.k+'][data-d="'+d.d+'"]');if(nb)nb.focus({preventScroll:true})}
-  else if(a==='add'){var dim=dimStr(),it=S.cart.filter(function(i){return i.pid===d.pid&&i.dim===dim})[0];if(it)it.qty+=4;else S.cart.push({pid:d.pid,dim:dim,qty:4});save();
-    setCart();var cb=$('#cartn');cb.classList.remove('pop');void cb.offsetWidth;cb.classList.add('pop');
-    el.classList.add('added');el.innerHTML='<span>'+ic('check')+'Ligger i varukorgen</span>';setTimeout(function(){if(el.isConnected){el.classList.remove('added');el.innerHTML='<span>Lägg 4 till</span>'}},1800)}
-  else if(a==='close')closeFlow();
-  else if(a==='back'){grab();W.err='';W.i=(W.steps[W.i]==='details'&&W.kind==='order'&&!W.fit)?0:W.i-1;renderSheet()}
-  else if(a==='next')nextStep();
-  else if(a==='pick'){W.svc=d.v;W.time=null;renderSheet()}
-  else if(a==='day'){W.date=d.v;W.time=null;renderSheet()}
-  else if(a==='slot'){W.time=d.v;W.err='';renderSheet()}
-  else if(a==='qty'){grab();var c=S.cart[+d.k];c.qty+=+d.d;if(c.qty<1)S.cart.splice(+d.k,1);save();renderTyres();renderSheet()}
-  else if(a==='toadmin'){var ord=W.kind==='order'&&!W.fit;closeFlow();A.cust=null;A.tab=ord?'ordrar':'bokningar';setView('admin')}
-  else if(a==='tab'){A.tab=d.v;A.cust=null;vt(renderAdmin)}
-  else if(a==='adv'){var b=S.bookings.filter(function(x){return x.id===d.id})[0];b.status=NEXTS[b.status];save();renderAdmin();toast(b.id+' är nu '+b.status.toLowerCase())}
-  else if(a==='cust'){A.cust=d.id;vt(function(){renderAdmin();window.scrollTo(0,0)})}
-  else if(a==='custback'){A.cust=null;A.tab='kunder';vt(renderAdmin)}
-  else if(a==='odone'){var o=S.orders.filter(function(x){return x.id===d.id})[0];o.status='Utlämnad';save();renderAdmin();toast(o.id+' är utlämnad')}
-  else if(a==='stock'){S.stock[d.k]=Math.max(0,S.stock[d.k]+ +d.d);save();renderAdmin()}
-  else if(a==='clearerr'){if(window.NKErr)NKErr.clear();renderAdmin();toast('Loggen är rensad')}
-  else if(a==='vadm')setView($('#site').hidden?'site':'admin');
-  else if(a==='snd'){SND.on=!SND.on;el.setAttribute('aria-pressed',SND.on);if(SND.on)audio();else humStop();toast(SND.on?'Ljud på':'Ljud av')}
-  else if(a==='sms'){var sb=S.bookings.filter(function(x){return x.id===d.id})[0];if(sb){sb.status='Klar för hämtning';save();renderAdmin();toast('SMS skickat till kund: Din bil är klar på Brynäsgatan 67')}}
-  else if(a==='reset'){try{localStorage.removeItem(KEY)}catch(x){}seed();A={tab:'idag',q:'',cust:null};setView('admin');renderTyres();toast('Demon är återställd')}
-});
-var txT;
-document.addEventListener('input',function(e){
-  if(e.target.id==='tyreText'){clearTimeout(txT);var val=e.target.value.trim().toUpperCase();txT=setTimeout(function(){if(wheel){wheel.setText(val||'NK BIL & DÄCK');wheel.kick(3)}},140)}
-  if(e.target.id==='q'){A.q=e.target.value;var qq=A.q.toLowerCase().replace(/\s/g,'');$('#custList').innerHTML=custRows(S.customers.filter(function(c){return !qq||(c.name+c.phone+c.cars.map(function(x){return x.reg}).join('')).toLowerCase().replace(/\s/g,'').indexOf(qq)>-1}))}
-});
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'&&W)closeFlow();
-  if(e.key==='Enter'&&document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.act==='vadm')setView($('#site').hidden?'site':'admin');
-  if(e.key&&e.key.toLowerCase()==='v'&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
-    var t=e.target;if(W)return;if(t&&t.closest&&t.closest('input,textarea,[contenteditable]'))return;
-    e.preventDefault();setView($('#site').hidden?'site':'admin');
+    case 'bookhotel': openFlow('book', { svc: 'hotell', extras: hotelExtras() }); break;
+    case 'snd': SND.on = !SND.on; el.setAttribute('aria-pressed', SND.on); el.setAttribute('aria-label', SND.on ? 'Ljud av' : 'Ljud på'); if (SND.on) audio(); else humStop(); toast(SND.on ? 'Ljud på. Håll inne på hjulet.' : 'Ljud av'); break;
+    case 'vadm': setView($('#site').hidden ? 'site' : 'admin'); break;
+    // sheet
+    case 'close': closeFlow(); break;
+    case 'next': nextStep(); break;
+    case 'back': grab(); W.err = null; W.i = W.steps[W.i] === 'who' && W.kind === 'order' && !W.fit ? 0 : W.i - 1; renderSheet(); break;
+    case 'goto': grab(); go(d.v); break;
+    case 'pick': grab(); W.svc = d.v; W.time = null; W.err = null; renderSheet(true); break;
+    case 'day': W.date = d.v; W.time = null; W.err = null; renderSheet(true); break;
+    case 'slot': W.time = d.v; W.err = null; renderSheet(true); break;
+    case 'first': W.date = d.date; W.time = d.time; W.err = null; renderSheet(true); break;
+    case 'qty': grab(); store.fresh(); E.cartSet(S, +d.k, (S.cart[+d.k] || { qty: 0 }).qty + +d.d); store.save(); renderTyres(); renderSheet(true); break;
+    case 'rm': grab(); store.fresh(); E.cartSet(S, +d.k, 0); store.save(); renderTyres(); renderSheet(true); toast('Borttaget ur varukorgen'); break;
+    case 'toshop': closeFlow(); setTimeout(() => { const s = $('#dack'); if (s) s.scrollIntoView({ behavior: RM ? 'auto' : 'smooth' }); }, 220); break;
+    case 'ics': if (W && W.result && W.result.booking) { downloadIcs(W.result.booking); toast('Kalenderfilen är nedladdad'); } break;
+    case 'toadmin': closeFlow(); setView('admin'); break;
+    case 'askcancel': W.ask = d.id; renderSheet(true); break;
+    case 'keep': W.ask = null; renderSheet(true); break;
+    case 'docancel': { store.fresh(); const r = E.cancel(S, d.id); store.save(); W.ask = null; W.list = E.mine(S, W.phone, NOW()); renderSheet(true); renderSite(); toast(r.ok ? 'Bokningen är avbokad' : 'Bokningen var redan avbokad'); break; }
+    case 'move': { const ph = W.phone; W = Object.assign(W, { kind: 'move', steps: STEPS.move.slice(), i: 0, shown: -1, moveId: d.id, date: E.byId(S, d.id).date, time: null, err: null, result: null, phone: ph }); renderSheet(); break; }
+    default: break;
   }
 });
-if('IntersectionObserver' in window){new IntersectionObserver(function(en,ob){if(en[0].isIntersecting){$('#skid').classList.add('in');ob.disconnect()}},{threshold:.6}).observe($('#skid'))}else $('#skid').classList.add('in');
-
-renderStatic();renderServices();renderCards();renderSize();renderSeason();renderTyres();
-setTimeout(function(){document.documentElement.classList.add('ready')},2400);
-var hpNow=895,hpRaf=0;
-document.addEventListener('change',function(e){
-  if(e.target.id==='autoC'){S.auto=e.target.checked;save();toast(S.auto?'Nya webbokningar bekräftas automatiskt':'Nya webbokningar väntar på er bekräftelse');return}
-  if(!e.target.matches||!e.target.matches('#hotelOpts input'))return;
-  var to=895+[].slice.call(document.querySelectorAll('#hotelOpts input[data-x]:checked')).reduce(function(a,i){return a+ +i.dataset.p},0),from=hpNow,t0=performance.now(),el=$('#hotelPrice');
-  cancelAnimationFrame(hpRaf);(function run(n){var t=Math.min(1,(n-t0)/(RM?1:420)),k=1-Math.pow(1-t,3);hpNow=Math.round(from+(to-from)*k);el.textContent=kr(hpNow);if(t<1)hpRaf=requestAnimationFrame(run)})(t0);
+document.addEventListener('submit', (e) => {
+  if (e.target.id !== 'mineForm') return; e.preventDefault(); grab();
+  const ph = E.normPhone(W.phone); W.err = ph.ok ? null : { field: 'phone', err: E.MSG.phone };
+  if (ph.ok) { store.fresh(); W.phone = ph.phone; W.list = E.mine(S, ph.phone, NOW()); }
+  renderSheet(true);
 });
-var TC=null;
-function untilt(c){if(!c)return;c.classList.remove('live');['--rx','--ry','--s'].forEach(function(p){c.style.removeProperty(p)});c.style.setProperty('--g','0')}
-function tilt(c,e,amt){var r=c.getBoundingClientRect(),px=(e.clientX-r.left)/r.width,py=(e.clientY-r.top)/r.height;c.classList.add('live');
-  c.style.setProperty('--ry',((px-.5)*amt).toFixed(2)+'deg');c.style.setProperty('--rx',((.5-py)*amt*.8).toFixed(2)+'deg');c.style.setProperty('--gx',(px*100).toFixed(1)+'%');c.style.setProperty('--gy',(py*100).toFixed(1)+'%');c.style.setProperty('--g','1')}
-if(!RM){
-  document.addEventListener('pointermove',function(e){if(e.pointerType!=='mouse')return;var c=e.target.closest?e.target.closest('.tcard'):null;if(TC&&TC!==c){untilt(TC);TC=null}if(c){TC=c;tilt(c,e,12)}},{passive:true});
-  document.addEventListener('pointerdown',function(e){if(e.pointerType==='mouse')return;var c=e.target.closest?e.target.closest('.tcard'):null;if(c){TC=c;tilt(c,e,7);c.style.setProperty('--s','.985')}},{passive:true});
-  ['pointerup','pointercancel'].forEach(function(n){document.addEventListener(n,function(e){if(e.pointerType!=='mouse'&&TC){untilt(TC);TC=null}},{passive:true})});
+document.addEventListener('change', (e) => {
+  if (e.target.matches('#hotelOpts input')) tweenHotel();
+  if (e.target.id === 'fFit' && W) { W.fit = e.target.checked; renderSheet(true); }
+});
+let txT = 0;
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'tyreText') { clearTimeout(txT); const val = e.target.value.trim().toUpperCase(); txT = setTimeout(() => { if (wheel) { wheel.setText(val || 'NK BIL & DÄCK'); wheel.kick(3); } }, 140); }
+  if (e.target.id === 'fReg' && W && W.err && W.err.field === 'reg') { W.err = null; const f = e.target.closest('.field'); f.classList.remove('bad'); const er = $('.ferr', f); if (er) er.remove(); }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { if (W) closeFlow(); else if (FOCUS || SCAN) closeCard(); }
+  if (e.key === 'Enter' && W && e.target.matches && e.target.matches('.sbody input') && !e.target.closest('form')) { e.preventDefault(); nextStep(); }
+  if (e.key && e.key.toLowerCase() === 'v' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const t = e.target; if (W || (t && t.closest && t.closest('input,textarea,select,[contenteditable]'))) return;
+    e.preventDefault(); setView($('#site').hidden ? 'site' : 'admin');
+  }
+});
+
+/* ---------- live updates: other tabs, the clock, the scroll bus ---------- */
+window.addEventListener('storage', (e) => {
+  if (e.key !== E.KEY || !e.newValue) return;
+  S = E.restore(e.newValue, NOW());
+  if (!$('#site').hidden) renderSite();
+  // redraw only steps that show live data, and keep what the visitor has typed (L-016)
+  if (W && !W.busy && ['when', 'cart', 'mine'].includes(W.steps[W.i])) { grab(); renderSheet(true); }
+  if (window.NKAdmin && !$('#admin').hidden) window.NKAdmin.render(true);
+});
+let lastDay = NOW().date;
+function tick() {
+  const now = NOW();
+  if (now.date !== lastDay) { lastDay = now.date; store.load(); }
+  if (!$('#site').hidden) { renderVisit(); renderBoard(); }
+  if (W && W.steps[W.i] === 'when' && !W.busy) { grab(); renderSheet(true); }
 }
-/* scroll bus: one rAF-throttled listener, plus a smoothed scroll velocity */
-var sv=0,lastSY=window.scrollY,lastST=performance.now(),stick=false;
-window.addEventListener('scroll',function(){
-  var n=performance.now(),dy=window.scrollY-lastSY,dt=Math.max(8,n-lastST);lastSY=window.scrollY;lastST=n;sv+=((dy/dt*1000)-sv)*.35;
-  if(stick)return;stick=true;requestAnimationFrame(function(){stick=false;onScrollFns.forEach(function(f){f()})});
-},{passive:true});
-/* address fills with paint as it scrolls into view */
-(function(){var a=document.querySelector('.addr');if(!a)return;
-  onScrollFns.push(function(){var r=a.getBoundingClientRect(),vh=window.innerHeight,p=clamp((vh*.92-r.top)/(vh*.42));a.style.setProperty('--fill',p.toFixed(3));a.classList.toggle('full',p>=1)});
-})();
-/* tape: speed and lean follow the scroll */
-(function(){var el=$('#tapeIn');if(!el)return;
-  var nut='<svg viewBox="0 0 16 16"><path d="M8 0l6.9 4v8L8 16 1.1 12V4z"/></svg>',one='<span>Däck'+nut+'Fälgar'+nut+'Verkstad'+nut+'Brynäs sedan 1993'+nut+'</span>';
-  el.innerHTML=one+one+one+one+one+one;
-  if(RM)return;
-  var x=0,w=0,vis=false,prev=0,lean=0;
-  new IntersectionObserver(function(e){vis=e[0].isIntersecting;if(vis){w=el.firstChild.offsetWidth;prev=performance.now();requestAnimationFrame(run)}},{rootMargin:'60px'}).observe(el.parentNode);
-  function run(n){if(!vis)return;var dt=Math.min(.05,(n-prev)/1000);prev=n;sv*=Math.pow(.02,dt);
-    x-=(46+sv*.22)*dt;if(w){x=((x%w)-w)%w}
-    lean+=(Math.max(-10,Math.min(10,sv*.006))-lean)*Math.min(1,dt*8);
-    el.style.transform='translate3d('+x.toFixed(1)+'px,0,0) skewX('+(-lean).toFixed(2)+'deg)';requestAnimationFrame(run)}
-})();
-/* burnout smoke */
-var smokeOn=false,PT=[],acc=0,revving=false;
-function smokeLoop(){
-  if(smokeOn||RM||!wheel)return;smokeOn=true;
-  var c=$('#smoke'),g=c.getContext('2d'),prev=performance.now(),col=getComputedStyle(document.documentElement).getPropertyValue('--smokec').trim()||'rgba(210,200,198,.5)';
-  // one pre-rendered sprite instead of a createRadialGradient call per particle per frame
-  var spr=document.createElement('canvas');spr.width=spr.height=128;{var sg=spr.getContext('2d'),gr=sg.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,col);gr.addColorStop(1,'rgba(210,200,198,0)');sg.fillStyle=gr;sg.fillRect(0,0,128,128)}
-  var dprS=Math.min(window.devicePixelRatio||1,2);
-  c.width=c.clientWidth*dprS;c.height=c.clientHeight*dprS;g.setTransform(dprS,0,0,dprS,0,0);
-  (function run(n){
-    var dt=Math.min(.05,(n-prev)/1000);prev=n;var sp=Math.abs(wheel.speed()),P=wheel.where();humTick(sp);
-    if(sp>12&&window.scrollY<G.S0*.4){acc+=Math.min(140,(sp-12)*6)*dt;for(;acc>=1;acc--)if(PT.length<180)PT.push({x:P.x-P.d*.04+(Math.random()-.5)*P.d*.16,y:P.y+P.d*.47,vx:-(50+Math.random()*230),vy:-(10+Math.random()*64),r:P.d*.05+Math.random()*P.d*.06,a:.2+Math.random()*.18,l:0})}
-    g.clearRect(0,0,c.clientWidth,c.clientHeight);
-    for(var j=PT.length-1;j>=0;j--){var p=PT[j];p.l+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.985;p.vy*=.985;p.r+=dt*P.d*.12;var al=p.a*(1-p.l/2.1);
-      if(al<=0){PT.splice(j,1);continue}
-      g.globalAlpha=al;g.drawImage(spr,p.x-p.r,p.y-p.r,p.r*2,p.r*2)}
-    g.globalAlpha=1;
-    if(PT.length||sp>12||revving)requestAnimationFrame(run);else{smokeOn=false;g.clearRect(0,0,c.clientWidth,c.clientHeight)}
-  })(prev);
-}
-(function(){var els=[].slice.call(document.querySelectorAll('.sec h2:not(.addr)'));
-  if(!('IntersectionObserver' in window)||RM)return;
-  var io=new IntersectionObserver(function(en){en.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target)}})},{threshold:.25,rootMargin:'0px 0px -6% 0px'});
-  els.forEach(function(e){e.innerHTML='<span class="rvi">'+e.innerHTML+'</span>';e.classList.add('rv');io.observe(e)});
-})();
-})();
+setInterval(tick, 60e3);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+let stick = false;
+window.addEventListener('scroll', () => { if (stick) return; stick = true; requestAnimationFrame(() => { stick = false; onScroll.forEach((f) => f()); }); }, { passive: true });
 
-/* === NK Verkstaden — Workshop OS & Guided Tour === */
-(function () {
-  const OS_KEY = 'nk-verkstad-os-v1';
-  const TOUR_KEY = 'nk-verkstad-tour-v1';
-  const DEMO_KEY = 'nk-demo-v5';
+renderSize(); renderSeason(); renderHotel(); renderSite();
+setTimeout(() => document.documentElement.classList.add('ready'), 2200);
 
-  function swedishNow() {
-    const parts = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Europe/Stockholm',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).formatToParts(new Date());
-    const map = Object.fromEntries(parts.map((p) => [p.type, p.value]));
-    return { date: `${map.year}-${map.month}-${map.day}`, time: `${map.hour}:${map.minute}` };
-  }
-
-  const DEFAULT_JOBS = [
-    {
-      id: 'NK-1041', reg: 'YTR 418', customer: 'Anders Lindqvist', phone: '070-341 88 12',
-      service: 'Säsongsskifte + Däckhotell', note: 'Hämta från Hylla B-14 (Nokian Hakkapeliitta 10, 225/50 R17)',
-      time: '09:30', lift: 'Lyft 1 – Däck', status: 'klar', treadMm: 6.5,
-      checks: { balanced: true, torqued: true, pressure: true }, mechNote: 'Momentdragna 120 Nm. Fint skick.',
-      source: 'Telefon', smsSentAt: '10:05',
-    },
-    {
-      id: 'NK-1042', reg: 'PXC 902', customer: 'Sofia Bergström', phone: '073-612 49 00',
-      service: 'Däckskifte & Balansering', note: '205/55 R16 • Kontrollera vänster fram (tappar luft)',
-      time: '11:00', lift: 'Lyft 1 – Däck', status: 'pa-lyft', treadMm: 3.4,
-      checks: { balanced: true, torqued: false, pressure: false }, mechNote: '3,4 mm kvar – tipsa kunden inför nästa säsong.',
-      source: 'Webb', smsSentAt: '',
-    },
-    {
-      id: 'NK-1043', reg: 'KLM 774', customer: 'Mikael Söderlund', phone: '076-229 10 55',
-      service: 'Akut Punktering (Drop-in)', note: 'Spik i höger bakdäck, står utanför porten',
-      time: '11:45', lift: 'Drop-in', status: 'vantar', treadMm: 5.0,
-      checks: { balanced: false, torqued: false, pressure: false }, mechNote: '',
-      source: 'Drop-in', smsSentAt: '',
-    },
-    {
-      id: 'NK-1044', reg: 'BGN 310', customer: 'Johan Ekström', phone: '070-884 19 33',
-      service: 'Hjulinställning + Nya Vinterdäck', note: '235/45 R18 • 4x Continental VikingContact 8',
-      time: '13:30', lift: 'Lyft 2 – Verkstad', status: 'vantar', treadMm: 8.0,
-      checks: { balanced: false, torqued: false, pressure: false }, mechNote: '',
-      source: 'Webb', smsSentAt: '',
-    },
-  ];
-
-  const DEFAULT_HOTEL = [
-    { id: 'H-01', shelf: 'Hylla A-04', reg: 'PXC 902', customer: 'Sofia Bergström', phone: '073-612 49 00', season: 'Sommar', dim: '205/55 R16', treadMm: 4.8 },
-    { id: 'H-02', shelf: 'Hylla B-14', reg: 'YTR 418', customer: 'Anders Lindqvist', phone: '070-341 88 12', season: 'Sommar', dim: '225/50 R17', treadMm: 5.5 },
-    { id: 'H-03', shelf: 'Hylla C-08', reg: 'RFT 621', customer: 'Karin Nyström', phone: '072-510 33 78', season: 'Vinter (Dubb)', dim: '215/60 R16', treadMm: 2.8 },
-    { id: 'H-04', shelf: 'Hylla D-19', reg: 'ZWA 509', customer: 'Henrik Åkesson', phone: '070-991 44 20', season: 'Vinter (Friktion)', dim: '245/40 R19', treadMm: 6.2 },
-  ];
-
-  const TOUR_STEPS = [
-    { title: '1/5 • Välkommen till NK Verkstaden', body: 'Här samlas dagens bokningar, lyftar och däckhotell på ett ställe – helt utan papperslappar eller dubbelbokningar.', target: '#nkos-kpis' },
-    { title: '2/5 • Dagens körschema & Lyftar', body: 'Flytta bilar mellan Väntar, Lyft 1, Lyft 2 och Klar med ett enda tryck. Alla ser direkt vad som står på lyften.', target: '#nkos-jobs' },
-    { title: '3/5 • Snabb loggning direkt på bilen', body: 'Steppa mönsterdjup (mm) med automatisk varning vid slitna däck, bocka av momentdragning (120 Nm) och spara en anteckning.', target: '#nkos-jobs' },
-    { title: '4/5 • Lägg in telefonbokning eller drop-in', body: 'Ringer en kund in eller rullar förbi med punktering? Klicka på "+ Ny bokning" så hamnar bilen i schemat på 10 sekunder.', target: '#nkos-btn-new' },
-    { title: '5/5 • Klar & skicka SMS med ett klick', body: 'När bilen är färdig trycker du på "Markera klar & skicka SMS" – kunden får direkt besked att bilen är klar på Brynäsgatan 67.', target: '#nkos-jobs' },
-  ];
-
-  function loadState() {
-    const today = swedishNow().date;
-    try {
-      const raw = localStorage.getItem(OS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.date === today && Array.isArray(parsed.jobs)) return parsed;
-      }
-    } catch (_) {}
-    return { date: today, jobs: JSON.parse(JSON.stringify(DEFAULT_JOBS)), hotel: JSON.parse(JSON.stringify(DEFAULT_HOTEL)), tab: 'jobs', filter: 'all', query: '' };
-  }
-
-  let state = loadState();
-  let tourIndex = -1;
-  let activeModal = null;
-
-  function saveState() {
-    try { localStorage.setItem(OS_KEY, JSON.stringify(state)); } catch (_) {}
-  }
-
-  function syncFromCustomerDemo() {
-    try {
-      const raw = localStorage.getItem(DEMO_KEY);
-      if (!raw) return false;
-      const demo = JSON.parse(raw);
-      const list = demo.bookings || demo.orders || demo.items || [];
-      if (!Array.isArray(list)) return false;
-      let changed = false;
-      list.forEach((b, idx) => {
-        const reg = String(b.reg || b.plate || '').toUpperCase().trim();
-        const extId = String(b.id || `WEB-${reg}-${idx}`);
-        if (!reg) return;
-        const exists = state.jobs.some((j) => j.extId === extId || (j.isNewWeb && j.reg === reg && j.time === (b.time || '14:00')));
-        if (!exists && (b.customer || b.name || b.phone || b.note)) {
-          state.jobs.unshift({
-            id: extId, extId, reg,
-            customer: b.customer || b.name || 'Webbkund',
-            phone: b.phone || b.tel || '070-000 00 00',
-            service: b.service || b.title || 'Onlinebokning (3D / Webb)',
-            note: b.note || b.detail || 'Bokad via hemsidan',
-            time: b.time || swedishNow().time,
-            lift: 'Lyft 1 – Däck', status: 'vantar', treadMm: 6.0,
-            checks: { balanced: false, torqued: false, pressure: false },
-            mechNote: '', source: 'NY WEBBOKNING', isNewWeb: true, smsSentAt: '',
-          });
-          changed = true;
-        }
-      });
-      if (changed) saveState();
-      return changed;
-    } catch (_) { return false; }
-  }
-
-  function injectStyles() {
-    if (document.getElementById('nkos-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'nkos-styles';
-    style.textContent = `
-      a[href*="github.com/ghostdesk0-oss"] { display: none !important; }
-      #nkos-root {
-        margin: 18px auto 36px; padding: 18px; border-radius: 18px;
-        background: linear-gradient(180deg, rgba(22,24,29,0.96), rgba(14,15,19,0.98));
-        border: 1px solid rgba(255,255,255,0.10); color: #f4f4f6;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        box-shadow: 0 24px 60px rgba(0,0,0,0.45);
-      }
-      #nkos-root * { box-sizing: border-box; }
-      .nkos-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-      .nkos-title-wrap h2 { margin: 0; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: #fff; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-      .nkos-badge-live { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 8px; border-radius: 999px; background: rgba(34,197,94,0.16); color: #4ade80; border: 1px solid rgba(34,197,94,0.35); }
-      .nkos-sub { margin: 4px 0 0; font-size: 0.86rem; color: #a1a1aa; }
-      .nkos-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-      .nkos-btn { min-height: 44px; padding: 0 14px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); color: #f4f4f6; font-size: 0.88rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: all .15s ease; }
-      .nkos-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.26); }
-      .nkos-btn-primary { background: #e4102a; border-color: #ff2e47; color: #fff; box-shadow: 0 6px 20px rgba(228,16,42,0.35); }
-      .nkos-btn-primary:hover { background: #c80d24; }
-      .nkos-btn-sms { background: rgba(34,197,94,0.16); border-color: rgba(34,197,94,0.45); color: #4ade80; }
-      .nkos-btn-sms:hover { background: rgba(34,197,94,0.26); }
-      .nkos-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; margin: 16px 0; }
-      .nkos-kpi { padding: 13px 14px; border-radius: 13px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); }
-      .nkos-kpi span { display: block; font-size: 0.76rem; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.04em; }
-      .nkos-kpi strong { display: block; margin-top: 4px; font-size: 1.35rem; color: #fff; }
-      .nkos-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
-      .nkos-tabs, .nkos-filters { display: flex; flex-wrap: wrap; gap: 6px; }
-      .nkos-pill { min-height: 38px; padding: 0 13px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: #d4d4d8; font-size: 0.83rem; font-weight: 600; cursor: pointer; }
-      .nkos-pill.active { background: #fff; color: #111318; border-color: #fff; }
-      .nkos-search { min-height: 42px; min-width: 220px; flex: 1; max-width: 340px; padding: 0 13px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.14); background: rgba(0,0,0,0.35); color: #fff; font-size: 0.9rem; }
-      .nkos-grid { display: grid; gap: 12px; }
-      .nkos-card { padding: 15px; border-radius: 15px; background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.09); }
-      .nkos-card.is-new { border-color: rgba(228,16,42,0.65); box-shadow: 0 0 0 1px rgba(228,16,42,0.25); }
-      .nkos-card-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-      .nkos-plate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
-      .nkos-plate { display: inline-flex; align-items: stretch; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.3); font-weight: 800; font-size: 0.92rem; letter-spacing: 0.06em; }
-      .nkos-plate-s { background: #00529b; color: #fff; padding: 3px 6px; font-size: 0.72rem; display: inline-flex; align-items: center; }
-      .nkos-plate-num { background: #f4f4f6; color: #111; padding: 3px 9px; }
-      .nkos-tag { font-size: 0.75rem; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: rgba(255,255,255,0.08); color: #e4e4e7; }
-      .nkos-tag-new { background: #e4102a; color: #fff; }
-      .nkos-tag-done { background: rgba(34,197,94,0.18); color: #4ade80; }
-      .nkos-tag-lift { background: rgba(59,130,246,0.2); color: #93c5fd; }
-      .nkos-meta { margin: 8px 0 12px; font-size: 0.88rem; color: #d4d4d8; line-height: 1.45; }
-      .nkos-meta a { color: #93c5fd; text-decoration: none; font-weight: 600; }
-      .nkos-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
-      .nkos-box { padding: 10px; border-radius: 11px; background: rgba(0,0,0,0.26); border: 1px solid rgba(255,255,255,0.06); }
-      .nkos-box label { display: block; font-size: 0.74rem; color: #a1a1aa; margin-bottom: 6px; font-weight: 600; }
-      .nkos-seg { display: flex; flex-wrap: wrap; gap: 5px; }
-      .nkos-seg button { min-height: 34px; padding: 0 9px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #d4d4d8; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
-      .nkos-seg button.on { background: #2563eb; border-color: #60a5fa; color: #fff; }
-      .nkos-seg button.chk-on { background: rgba(34,197,94,0.22); border-color: #4ade80; color: #86efac; }
-      .nkos-stepper { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-      .nkos-stepper button { width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08); color: #fff; font-size: 1rem; font-weight: 700; cursor: pointer; }
-      .nkos-tread-badge { font-size: 0.76rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
-      .nkos-note-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
-      .nkos-note-input { flex: 1; min-width: 210px; min-height: 40px; padding: 0 11px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.35); color: #fff; font-size: 0.85rem; }
-      .nkos-tour { margin: 14px 0; padding: 15px 16px; border-radius: 14px; background: linear-gradient(135deg, rgba(37,99,235,0.22), rgba(228,16,42,0.16)); border: 1px solid rgba(147,197,253,0.45); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-      .nkos-tour h3 { margin: 0 0 4px; font-size: 1rem; color: #fff; }
-      .nkos-tour p { margin: 0; font-size: 0.88rem; color: #e4e4e7; max-width: 620px; }
-      .nkos-highlight { outline: 2px solid #60a5fa !important; outline-offset: 4px; border-radius: 14px; }
-      .nkos-modal-bg { position: fixed; inset: 0; z-index: 120; background: rgba(0,0,0,0.72); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 16px; }
-      .nkos-modal { width: 100%; max-width: 460px; padding: 20px; border-radius: 18px; background: #16181f; border: 1px solid rgba(255,255,255,0.16); color: #fff; }
-      .nkos-modal h3 { margin: 0 0 12px; font-size: 1.15rem; }
-      .nkos-field { margin-bottom: 10px; }
-      .nkos-field label { display: block; font-size: 0.78rem; color: #a1a1aa; margin-bottom: 4px; }
-      .nkos-field input, .nkos-field select { width: 100%; min-height: 42px; padding: 0 11px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.16); background: #0d0e12; color: #fff; font-size: 0.92rem; }
-      .nkos-toast { position: fixed; bottom: 22px; right: 20px; left: 20px; max-width: 460px; margin: 0 auto; z-index: 140; padding: 14px 16px; border-radius: 14px; background: #111827; border: 1px solid #4ade80; color: #f4f4f6; font-size: 0.88rem; box-shadow: 0 16px 40px rgba(0,0,0,0.6); }
-    `;
-    document.head.appendChild(style);
-  }
-
-  function showToast(msg) {
-    let el = document.getElementById('nkos-toast');
-    if (!el) { el = document.createElement('div'); el.id = 'nkos-toast'; el.className = 'nkos-toast'; document.body.appendChild(el); }
-    el.textContent = msg;
-    el.style.display = 'block';
-    clearTimeout(el._t);
-    el._t = setTimeout(() => { el.style.display = 'none'; }, 5200);
-  }
-
-  function treadBadge(mm) {
-    if (mm < 3.0) return `<span class="nkos-tread-badge" style="background:rgba(239,68,68,0.22);color:#fca5a5;">${mm.toFixed(1)} mm • Under lagkrav (3 mm)</span>`;
-    if (mm < 4.0) return `<span class="nkos-tread-badge" style="background:rgba(245,158,11,0.22);color:#fcd34d;">${mm.toFixed(1)} mm • Tipsa om nya däck</span>`;
-    return `<span class="nkos-tread-badge" style="background:rgba(34,197,94,0.2);color:#86efac;">${mm.toFixed(1)} mm • Bra mönster</span>`;
-  }
-
-  function esc(str) {
-    return String(str || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
-
-  function findAdminHost() {
-    const tablists = Array.from(document.querySelectorAll('[role="tablist"]'));
-    for (const tl of tablists) { if (!tl.closest('#site')) return tl.parentElement; }
-    const divs = Array.from(document.querySelectorAll('body > div'));
-    return divs.find((d) => d.id !== 'site' && d.textContent && d.textContent.includes('Verkstaden')) || null;
-  }
-
-  function render() {
-    const host = findAdminHost();
-    if (!host) return;
-    injectStyles();
-    syncFromCustomerDemo();
-
-    let root = document.getElementById('nkos-root');
-    if (!root) {
-      root = document.createElement('section');
-      root.id = 'nkos-root';
-      const tablist = host.querySelector('[role="tablist"]');
-      if (tablist) host.insertBefore(root, tablist);
-      else host.prepend(root);
-    }
-
-    if (!localStorage.getItem(TOUR_KEY) && tourIndex === -1 && !host.hidden) tourIndex = 0;
-
-    const activeLiftCount = state.jobs.filter((j) => j.status === 'pa-lyft').length;
-    const doneCount = state.jobs.filter((j) => j.status === 'klar').length;
-    const hotelUsed = 308 + state.hotel.length;
-
-    const q = state.query.trim().toLowerCase();
-    const filteredJobs = state.jobs.filter((j) => {
-      if (state.filter !== 'all' && j.status !== state.filter) return false;
-      if (!q) return true;
-      return [j.reg, j.customer, j.phone, j.service, j.note, j.lift].some((v) => String(v || '').toLowerCase().includes(q));
-    });
-
-    const filteredHotel = state.hotel.filter((h) => {
-      if (!q) return true;
-      return [h.shelf, h.reg, h.customer, h.phone, h.dim, h.season].some((v) => String(v || '').toLowerCase().includes(q));
-    });
-
-    const tourHtml = tourIndex >= 0 && TOUR_STEPS[tourIndex] ? `
-      <div class="nkos-tour" role="region" aria-label="Snabbguide för verkstaden">
-        <div><h3>${esc(TOUR_STEPS[tourIndex].title)}</h3><p>${esc(TOUR_STEPS[tourIndex].body)}</p></div>
-        <div class="nkos-actions">
-          ${tourIndex > 0 ? `<button type="button" class="nkos-btn" data-nkos-tour="prev">← Tillbaka</button>` : ''}
-          <button type="button" class="nkos-btn nkos-btn-primary" data-nkos-tour="next">${tourIndex < TOUR_STEPS.length - 1 ? 'Nästa steg →' : 'Klar, börja jobba ✓'}</button>
-          <button type="button" class="nkos-btn" data-nkos-tour="close">Stäng</button>
-        </div>
-      </div>` : '';
-
-    const jobsHtml = filteredJobs.length ? filteredJobs.map((j) => {
-      const statusBadge = j.status === 'klar'
-        ? `<span class="nkos-tag nkos-tag-done">Klar${j.smsSentAt ? ` • SMS ${esc(j.smsSentAt)}` : ''}</span>`
-        : j.status === 'pa-lyft' ? `<span class="nkos-tag nkos-tag-lift">${esc(j.lift)}</span>` : `<span class="nkos-tag">Väntar • ${esc(j.lift)}</span>`;
-      return `
-        <article class="nkos-card ${j.isNewWeb ? 'is-new' : ''}">
-          <div class="nkos-card-top">
-            <div class="nkos-plate-row">
-              <span class="nkos-plate"><span class="nkos-plate-s">S</span><span class="nkos-plate-num">${esc(j.reg)}</span></span>
-              <strong>${esc(j.customer)}</strong>
-              <span class="nkos-tag">Kl ${esc(j.time)}</span>
-              ${j.isNewWeb ? `<span class="nkos-tag nkos-tag-new">NY WEBBOKNING</span>` : ''}
-              ${statusBadge}
-            </div>
-            <button type="button" class="nkos-btn nkos-btn-sms" data-nkos-sms="${esc(j.id)}">${j.status === 'klar' ? 'Skicka påminnelse-SMS igen' : 'Markera klar & skicka SMS'}</button>
-          </div>
-          <div class="nkos-meta"><strong>${esc(j.service)}</strong> — ${esc(j.note)} • Tel: <a href="tel:${esc(j.phone.replace(/[^+\d]/g, ''))}">${esc(j.phone)}</a></div>
-          <div class="nkos-controls">
-            <div class="nkos-box"><label>Status & Lyftplacering</label>
-              <div class="nkos-seg">
-                <button type="button" class="${j.status === 'vantar' ? 'on' : ''}" data-nkos-status="${esc(j.id)}:vantar">Väntar</button>
-                <button type="button" class="${j.status === 'pa-lyft' && j.lift.includes('Lyft 1') ? 'on' : ''}" data-nkos-lift="${esc(j.id)}:Lyft 1 – Däck">Lyft 1</button>
-                <button type="button" class="${j.status === 'pa-lyft' && j.lift.includes('Lyft 2') ? 'on' : ''}" data-nkos-lift="${esc(j.id)}:Lyft 2 – Verkstad">Lyft 2</button>
-                <button type="button" class="${j.status === 'klar' ? 'on' : ''}" data-nkos-status="${esc(j.id)}:klar">Klar</button>
-              </div>
-            </div>
-            <div class="nkos-box"><label>Mönsterdjup (mm)</label>
-              <div class="nkos-stepper">
-                <button type="button" aria-label="Minska mönsterdjup" data-nkos-tread="${esc(j.id)}:-0.5">−</button>
-                ${treadBadge(j.treadMm)}
-                <button type="button" aria-label="Öka mönsterdjup" data-nkos-tread="${esc(j.id)}:0.5">+</button>
-              </div>
-            </div>
-            <div class="nkos-box"><label>Verkstadscheck (1-tryck)</label>
-              <div class="nkos-seg">
-                <button type="button" class="${j.checks.balanced ? 'chk-on' : ''}" data-nkos-chk="${esc(j.id)}:balanced">Balanserade ${j.checks.balanced ? '✓' : ''}</button>
-                <button type="button" class="${j.checks.torqued ? 'chk-on' : ''}" data-nkos-chk="${esc(j.id)}:torqued">Moment 120 Nm ${j.checks.torqued ? '✓' : ''}</button>
-                <button type="button" class="${j.checks.pressure ? 'chk-on' : ''}" data-nkos-chk="${esc(j.id)}:pressure">Lufttryck ${j.checks.pressure ? '✓' : ''}</button>
-              </div>
-            </div>
-          </div>
-          <div class="nkos-note-row"><input class="nkos-note-input" type="text" placeholder="Skriv verkstadsanteckning (sparas automatiskt)..." value="${esc(j.mechNote)}" data-nkos-note="${esc(j.id)}" /></div>
-        </article>`;
-    }).join('') : `<div class="nkos-card">Inga bokningar matchar filtret just nu. Klicka på <strong>+ Ny bokning / Drop-in</strong> för att lägga in en bil.</div>`;
-
-    const hotelHtml = filteredHotel.map((h) => `
-      <article class="nkos-card">
-        <div class="nkos-card-top">
-          <div class="nkos-plate-row">
-            <span class="nkos-tag nkos-tag-lift">${esc(h.shelf)}</span>
-            <span class="nkos-plate"><span class="nkos-plate-s">S</span><span class="nkos-plate-num">${esc(h.reg)}</span></span>
-            <strong>${esc(h.customer)}</strong>
-            <span class="nkos-tag">${esc(h.season)} • ${esc(h.dim)}</span>
-            ${treadBadge(h.treadMm)}
-          </div>
-          <button type="button" class="nkos-btn nkos-btn-primary" data-nkos-bookhotel="${esc(h.id)}">Boka säsongsskifte →</button>
-        </div>
-      </article>`).join('');
-
-    const modalHtml = activeModal === 'new-job' ? `
-      <div class="nkos-modal-bg" data-nkos-closemodal="1">
-        <form class="nkos-modal" id="nkos-form-job">
-          <h3>+ Ny telefonbokning / Drop-in</h3>
-          <div class="nkos-field"><label>Registreringsnummer *</label><input name="reg" placeholder="ABC 123" required maxlength="8" /></div>
-          <div class="nkos-field"><label>Kundnamn *</label><input name="customer" placeholder="För- och efternamn" required /></div>
-          <div class="nkos-field"><label>Mobilnummer (för SMS när bilen är klar) *</label><input name="phone" placeholder="070-123 45 67" required /></div>
-          <div class="nkos-field"><label>Tjänst</label><select name="service"><option>Däckskifte (4 hjul)</option><option>Akut Punktering (Drop-in)</option><option>Säsongsskifte + Däckhotell</option><option>Nya däck & balansering</option><option>Hjulinställning</option><option>Service / Bromsar</option></select></div>
-          <div class="nkos-field"><label>Lyft / Spår</label><select name="lift"><option>Lyft 1 – Däck</option><option>Lyft 2 – Verkstad</option><option>Drop-in</option></select></div>
-          <div class="nkos-field"><label>Tid idag (Gävle)</label><input name="time" value="${esc(swedishNow().time)}" /></div>
-          <div class="nkos-field"><label>Anteckning</label><input name="note" placeholder="T.ex. däckdimension eller hyllplats" /></div>
-          <div class="nkos-actions" style="margin-top:14px;justify-content:flex-end;">
-            <button type="button" class="nkos-btn" data-nkos-closemodal="1">Avbryt</button>
-            <button type="submit" class="nkos-btn nkos-btn-primary">Spara i körschemat</button>
-          </div>
-        </form>
-      </div>` : activeModal === 'new-hotel' ? `
-      <div class="nkos-modal-bg" data-nkos-closemodal="1">
-        <form class="nkos-modal" id="nkos-form-hotel">
-          <h3>+ Lägg in däck i Däckhotell</h3>
-          <div class="nkos-field"><label>Hyllplats *</label><input name="shelf" placeholder="Hylla B-22" required /></div>
-          <div class="nkos-field"><label>Registreringsnummer *</label><input name="reg" placeholder="ABC 123" required maxlength="8" /></div>
-          <div class="nkos-field"><label>Kundnamn *</label><input name="customer" placeholder="Kundens namn" required /></div>
-          <div class="nkos-field"><label>Mobilnummer</label><input name="phone" placeholder="070-123 45 67" /></div>
-          <div class="nkos-field"><label>Säsong</label><select name="season"><option>Sommar</option><option>Vinter (Dubb)</option><option>Vinter (Friktion)</option></select></div>
-          <div class="nkos-field"><label>Dimension</label><input name="dim" placeholder="225/45 R17" /></div>
-          <div class="nkos-field"><label>Mönsterdjup (mm)</label><input name="treadMm" type="number" step="0.5" value="6.0" /></div>
-          <div class="nkos-actions" style="margin-top:14px;justify-content:flex-end;">
-            <button type="button" class="nkos-btn" data-nkos-closemodal="1">Avbryt</button>
-            <button type="submit" class="nkos-btn nkos-btn-primary">Spara hyllplats</button>
-          </div>
-        </form>
-      </div>` : '';
-
-    root.innerHTML = `
-      <div class="nkos-head">
-        <div class="nkos-title-wrap">
-          <h2>NK Verkstaden • Brynäsgatan 67 <span class="nkos-badge-live">Driftläge Gävle</span></h2>
-          <p class="nkos-sub">Enkel översikt för lyftar, däckhotell och automatiska SMS till kund.</p>
-        </div>
-        <div class="nkos-actions">
-          <button type="button" class="nkos-btn" id="nkos-btn-tour">Visa guide</button>
-          <button type="button" class="nkos-btn" id="nkos-btn-hotel">+ Däckhotell</button>
-          <button type="button" class="nkos-btn nkos-btn-primary" id="nkos-btn-new">+ Ny bokning / Drop-in</button>
-        </div>
-      </div>
-      ${tourHtml}
-      <div class="nkos-kpis" id="nkos-kpis">
-        <div class="nkos-kpi"><span>Dagens jobb</span><strong>${state.jobs.length} st</strong></div>
-        <div class="nkos-kpi"><span>På lyft just nu</span><strong>${activeLiftCount} / 2 lyftar</strong></div>
-        <div class="nkos-kpi"><span>Däckhotell</span><strong>${hotelUsed} / 360</strong></div>
-        <div class="nkos-kpi"><span>Klara idag</span><strong>${doneCount} st</strong></div>
-      </div>
-      <div class="nkos-toolbar">
-        <div class="nkos-tabs">
-          <button type="button" class="nkos-pill ${state.tab === 'jobs' ? 'active' : ''}" data-nkos-tab="jobs">Körschema & Lyftar (${state.jobs.length})</button>
-          <button type="button" class="nkos-pill ${state.tab === 'hotel' ? 'active' : ''}" data-nkos-tab="hotel">Däckhotell (${state.hotel.length})</button>
-        </div>
-        ${state.tab === 'jobs' ? `
-          <div class="nkos-filters">
-            <button type="button" class="nkos-pill ${state.filter === 'all' ? 'active' : ''}" data-nkos-filter="all">Alla</button>
-            <button type="button" class="nkos-pill ${state.filter === 'vantar' ? 'active' : ''}" data-nkos-filter="vantar">Väntar</button>
-            <button type="button" class="nkos-pill ${state.filter === 'pa-lyft' ? 'active' : ''}" data-nkos-filter="pa-lyft">På lyft</button>
-            <button type="button" class="nkos-pill ${state.filter === 'klar' ? 'active' : ''}" data-nkos-filter="klar">Klara</button>
-          </div>` : ''}
-        <input class="nkos-search" id="nkos-search" type="search" placeholder="Sök reg.nr, kund, mobil eller hylla..." value="${esc(state.query)}" />
-      </div>
-      <div class="nkos-grid" id="nkos-jobs">${state.tab === 'jobs' ? jobsHtml : hotelHtml}</div>
-      ${modalHtml}`;
-
-    root.querySelectorAll('.nkos-highlight').forEach((el) => el.classList.remove('nkos-highlight'));
-    if (tourIndex >= 0 && TOUR_STEPS[tourIndex]) {
-      const target = root.querySelector(TOUR_STEPS[tourIndex].target);
-      if (target) target.classList.add('nkos-highlight');
-    }
-  }
-
-  function toggleAdminShortcut() {
-    const viewGroup = document.querySelector('[aria-label="Välj vy"]');
-    if (!viewGroup) return;
-    const btns = Array.from(viewGroup.querySelectorAll('button'));
-    if (btns.length < 2) return;
-    const adminHost = findAdminHost();
-    const isAdminOpen = adminHost && !adminHost.hidden;
-    (isAdminOpen ? btns[0] : btns[1]).click();
-  }
-
-  document.addEventListener('keydown', (e) => {
-    if (e.shiftKey && (e.key === 'V' || e.key === 'v')) {
-      const tag = (e.target && e.target.tagName) || '';
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      e.preventDefault();
-      toggleAdminShortcut();
-    }
-  });
-
-  document.addEventListener('click', (e) => {
-    const footer = e.target.closest('footer');
-    if (footer && !e.target.closest('a, button')) { toggleAdminShortcut(); return; }
-    const root = document.getElementById('nkos-root');
-    if (!root || !root.contains(e.target)) return;
-    if (e.target.closest('#nkos-btn-tour')) { tourIndex = 0; render(); return; }
-    if (e.target.closest('#nkos-btn-new')) { activeModal = 'new-job'; render(); return; }
-    if (e.target.closest('#nkos-btn-hotel')) { activeModal = 'new-hotel'; render(); return; }
-    if (e.target.dataset && e.target.dataset.nkosClosemodal) { activeModal = null; render(); return; }
-
-    const tourAct = e.target.dataset && e.target.dataset.nkosTour;
-    if (tourAct) {
-      if (tourAct === 'prev') tourIndex = Math.max(0, tourIndex - 1);
-      else if (tourAct === 'next') { if (tourIndex < TOUR_STEPS.length - 1) tourIndex += 1; else { tourIndex = -1; localStorage.setItem(TOUR_KEY, '1'); } }
-      else if (tourAct === 'close') { tourIndex = -1; localStorage.setItem(TOUR_KEY, '1'); }
-      render(); return;
-    }
-
-    const tab = e.target.dataset && e.target.dataset.nkosTab;
-    if (tab) { state.tab = tab; saveState(); render(); return; }
-    const flt = e.target.dataset && e.target.dataset.nkosFilter;
-    if (flt) { state.filter = flt; saveState(); render(); return; }
-
-    const st = e.target.dataset && e.target.dataset.nkosStatus;
-    if (st) { const [id, val] = st.split(':'); const job = state.jobs.find((j) => j.id === id); if (job) { job.status = val; saveState(); render(); } return; }
-    const lf = e.target.dataset && e.target.dataset.nkosLift;
-    if (lf) { const [id, liftName] = lf.split(':'); const job = state.jobs.find((j) => j.id === id); if (job) { job.lift = liftName; job.status = 'pa-lyft'; saveState(); render(); } return; }
-    const tr = e.target.dataset && e.target.dataset.nkosTread;
-    if (tr) {
-      const [id, delta] = tr.split(':');
-      const job = state.jobs.find((j) => j.id === id);
-      if (job) { job.treadMm = Math.max(1.0, Math.min(10.0, Math.round((job.treadMm + parseFloat(delta)) * 10) / 10)); saveState(); render(); }
-      return;
-    }
-    const chk = e.target.dataset && e.target.dataset.nkosChk;
-    if (chk) { const [id, key] = chk.split(':'); const job = state.jobs.find((j) => j.id === id); if (job) { job.checks[key] = !job.checks[key]; saveState(); render(); } return; }
-    const smsId = e.target.dataset && e.target.dataset.nkosSms;
-    if (smsId) {
-      const job = state.jobs.find((j) => j.id === smsId);
-      if (job) {
-        job.status = 'klar'; job.smsSentAt = swedishNow().time; saveState(); render();
-        showToast(`SMS skickat till ${job.customer} (${job.phone}): "Hej! Din bil (${job.reg}) är nu klar för hämtning hos NK Bil & Däck på Brynäsgatan 67."`);
-      }
-      return;
-    }
-    const hotelId = e.target.dataset && e.target.dataset.nkosBookhotel;
-    if (hotelId) {
-      const h = state.hotel.find((x) => x.id === hotelId);
-      if (h) {
-        state.jobs.unshift({
-          id: 'NK-' + Math.floor(1050 + Math.random() * 890), reg: h.reg, customer: h.customer, phone: h.phone,
-          service: 'Säsongsskifte + Däckhotell', note: `Hämta från ${h.shelf} (${h.season}, ${h.dim})`,
-          time: swedishNow().time, lift: 'Lyft 1 – Däck', status: 'vantar', treadMm: h.treadMm,
-          checks: { balanced: false, torqued: false, pressure: false }, mechNote: '', source: 'Däckhotell', isNewWeb: true, smsSentAt: '',
-        });
-        state.tab = 'jobs'; saveState(); render();
-        showToast(`Bokning skapad för ${h.reg} (${h.shelf}) i körschemat.`);
-      }
-    }
-  });
-
-  document.addEventListener('input', (e) => {
-    if (e.target && e.target.id === 'nkos-search') {
-      state.query = e.target.value; saveState(); render();
-      const inp = document.getElementById('nkos-search');
-      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
-      return;
-    }
-    const noteId = e.target && e.target.dataset && e.target.dataset.nkosNote;
-    if (noteId) { const job = state.jobs.find((j) => j.id === noteId); if (job) { job.mechNote = e.target.value; saveState(); } }
-  });
-
-  document.addEventListener('submit', (e) => {
-    if (e.target && e.target.id === 'nkos-form-job') {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const reg = String(fd.get('reg') || '').toUpperCase().trim();
-      state.jobs.unshift({
-        id: 'NK-' + Math.floor(1050 + Math.random() * 890), reg,
-        customer: String(fd.get('customer') || '').trim(), phone: String(fd.get('phone') || '').trim(),
-        service: String(fd.get('service') || 'Däckskifte'), note: String(fd.get('note') || 'Inlagd i verkstaden').trim(),
-        time: String(fd.get('time') || swedishNow().time).trim(), lift: String(fd.get('lift') || 'Lyft 1 – Däck'),
-        status: 'vantar', treadMm: 6.0, checks: { balanced: false, torqued: false, pressure: false }, mechNote: '',
-        source: 'Verkstad', isNewWeb: true, smsSentAt: '',
-      });
-      activeModal = null; state.tab = 'jobs'; saveState(); render();
-      showToast(`${reg} tillagd i dagens körschema.`);
-    }
-    if (e.target && e.target.id === 'nkos-form-hotel') {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const reg = String(fd.get('reg') || '').toUpperCase().trim();
-      const shelf = String(fd.get('shelf') || '').trim();
-      state.hotel.unshift({
-        id: 'H-' + Math.floor(10 + Math.random() * 89), shelf, reg,
-        customer: String(fd.get('customer') || '').trim(), phone: String(fd.get('phone') || '').trim(),
-        season: String(fd.get('season') || 'Sommar'), dim: String(fd.get('dim') || '205/55 R16').trim(),
-        treadMm: parseFloat(fd.get('treadMm') || '6.0') || 6.0,
-      });
-      activeModal = null; state.tab = 'hotel'; saveState(); render();
-      showToast(`${reg} sparad på ${shelf} i Däckhotellet.`);
-    }
-  });
-
-  window.addEventListener('storage', (e) => { if (e.key === DEMO_KEY || e.key === OS_KEY) { state = loadState(); render(); } });
-  const mo = new MutationObserver(() => {
-    const host = findAdminHost();
-    if (host && !host.hidden && !document.getElementById('nkos-root')) render();
-  });
-  function boot() { render(); mo.observe(document.body, { attributes: true, childList: true, subtree: true }); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
+window.NK = { E, get S() { return S; }, set S(v) { S = v; }, store, toast, vt, setView, openFlow, renderSite, now: NOW, esc, kr, ic, $, $$ };
 })();
